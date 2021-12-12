@@ -1,10 +1,9 @@
-# Deep Coordination Graphs (B&ouml;hmer et al., 2020)  
+# Pseudo Sequential - MARL Architecture
   
-This GIT contains the implementations of the ICML 2020 paper "[Deep Coordination Graphs](https://arxiv.org/abs/1910.00091)" by [Wendelin B&ouml;hmer](https://github.com/wendelinboehmer), [Vitaly Kurin](https://yobibyte.github.io) and [Shimon Whiteson](https://github.com/oxwhirl).  The code is based on the python/pytorch framework [PyMARL](https://github.com/oxwhirl/pymarl) from the [Starcraft Multi-Agent Challenge](https://arxiv.org/abs/1902.04043).   For questions and comments please contact [Wendelin B&ouml;hmer](mailto:wendelinboehmer@gmail.com).  
+! Under work !
   
-  
-## Installation instructions  
-  
+## Installation instructions
+Installation instruction from DCG repository
 
 Follow the first 2 steps from [PyMARL](https://github.com/oxwhirl/pymarl) :  
 1. Build the Dockerfile using     

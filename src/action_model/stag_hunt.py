@@ -16,11 +16,12 @@ class StagHunt(ActionModel):
 
 
     def update_state(self, state):
+        # ! TODO: merge agents (call to action model) then update execute_order
         return super().update_state(state)
 
-    def step(self, action):
+    def step(self, actor, actions):
         # if action is a list, more than one agent execute an action simultaneously
-        if type(action) is list:
+        if type(actor) is list:
             pass
 
         # otherwise, it's one agent action

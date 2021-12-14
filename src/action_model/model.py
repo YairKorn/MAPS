@@ -1,4 +1,8 @@
+from os import name
 import numpy as np
+from collections import namedtuple
+
+BufferEntry = namedtuple('BufferEntry', ['id', 'prev_state', 'action', 'new_state'])
 
 """ Basic action model class - action models inherit from it """
 class ActionModel():
@@ -9,6 +13,9 @@ class ActionModel():
         self.stochastic_env  = getattr(args, "stochastic_environment", False)
         self.monte_carlo     = getattr(args, "apply_monte_carlo", False)
         self.mcts_batch_size = getattr(args, "mcts_batch_size", 32)
+
+        # general
+        self.buffer = np.empty(shape=0) # np.full(shape=getattr(args, "n_agents"), fill_value=np.nan)
 
     """ When new perception is percepted, update the real state """
     def update_state(self, state):

@@ -185,15 +185,7 @@ class DeepCoordinationGraphMAC(BasicMAC):
         BasicMAC.load_state(self, other_mac)
         self.utility_fun.load_state_dict(other_mac.utility_fun.state_dict())
         self.payoff_fun.load_state_dict(other_mac.payoff_fun.state_dict())
-        if self.duelling:
-            self.state_value.load_state_dict(other_mac.state_value.state_dict())
-
-    def save_models(self, path):
-        """ Saves parameters to the disc. """
-        BasicMAC.save_models(self, path)
-        th.save(self.utility_fun.state_dict(), "{}/utilities.th".format(path))
-        th.save(self.payoff_fun.state_dict(), "{}/payoffs.th".format(path))
-        if self.duelling:
+        if self.hidden_dimsduelling:
             th.save(self.state_value, "{}/state_value.th".format(path))
 
     def load_models(self, path):

@@ -15,3 +15,5 @@ REGISTRY["cg_mac"] = SimpleCoordionationGraphMAC
 from .low_rank_controller import LowRankMAC
 REGISTRY["low_rank_q"] = LowRankMAC
 
+from .pseq_controller import PSeqMAC
+REGISTRY["pseq"] = PSeqMAC

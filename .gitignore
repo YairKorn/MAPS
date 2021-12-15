@@ -4,3 +4,10 @@
 # Exclude the results that you may have produced in past experiments
 results/
 
+# Exclude libraries etc.
+tb_logs/
+results/
+Lib/
+Include/
+Scripts/
+*.pyc

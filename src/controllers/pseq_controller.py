@@ -1,6 +1,6 @@
 import numpy as np
 from .basic_controller import BasicMAC
-from src.action_model import REGISTRY as model_REGISTRY
+from action_model import REGISTRY as model_REGISTRY
 
 class PSeqMAC(BasicMAC):
     def __init__(self, scheme, groups, args):
@@ -9,7 +9,7 @@ class PSeqMAC(BasicMAC):
         
         # PSeq properties & action model initalization
         self.random_ordering = getattr(args, "random_ordering", True)
-        self.action_model = model_REGISTRY[args.environment](args)
+        self.action_model = model_REGISTRY[args.env](args)
 
         # TODO: initialize agents using args - DQN / DDQN / RNN etc.
         # ! CUDA - how to move calcs to GPU
@@ -19,10 +19,10 @@ class PSeqMAC(BasicMAC):
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         # return a list of "augmanted agents" - agents that should considered as one agent
-        augmanted_agents = self.action_model.update(ep_batch["state"][:, t_ep])
+        augmanted_agents = self.action_model.update_state(ep_batch["state"][:, t_ep])
 
         # Array to hold the chosen actions
-        chosen_actions = np.empty(shape=(1, self.n_agents))
+        chosen_actions = np.zeros(shape=(1, self.n_agents))
 
         # choose execution sequence
         execute_order = np.random.permutation(augmanted_agents) if self.random_ordering else np.arange(augmanted_agents)

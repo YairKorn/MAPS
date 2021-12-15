@@ -1,18 +1,21 @@
-import numpy as np  
+import numpy as np
+
+from utils.dict2namedtuple import convert
 from .model import ActionModel
 
 class StagHunt(ActionModel):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.no_agents = self.args.n_agents
-        self.toroidal = self.args.toroidal
+    def __init__(self, args):
+        super().__init__(args)
+        self.n_agents = args.n_agents
+
 
         # env specific properties
+        self.toroidal = args.env_args['toroidal']
         self.actions = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0], [0, 0],
             [0, 0], [0, 0], [0, 0], [0, 0]], dtype=np.int16)
 
         # world initializing
-        self.x_max, self.y_max = self.args.world_shape
+        self.x_max, self.y_max = args.env_args['world_shape']
 
 
     def update_state(self, state):

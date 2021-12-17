@@ -1,4 +1,5 @@
 import numpy as np
+import torch as th
 from .basic_controller import BasicMAC
 from action_model import REGISTRY as model_REGISTRY
 
@@ -15,14 +16,22 @@ class PSeqMAC(BasicMAC):
         # ! CUDA - how to move calcs to GPU
         # ! parameters, save & load models - check if need to be changed
 
-    ### This function overrides MAC's original function because PSeq selects actions sequentially and select_actions selects actions cincurrently ###
+    ### This function overrides MAC's original function because PSeq selects actions sequentially and select_actions selects actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
-        # return a list of "augmanted agents" - agents that should considered as one agent
+        # return a list of "augmanted agents" - agents that in interaction and need to select a joint action
         augmanted_agents = self.action_model.update_state(ep_batch["state"][:, t_ep])
 
-        # Array to hold the chosen actions
-        chosen_actions = np.zeros(shape=(1, self.n_agents))
+        # build the basic input that common to all the agents #? Consider Conv2D layer and non-flat observation
+        # based on _build_inputs of BasicMAC
+        self.step_inputs = []
+        if self.args.obs_last_action:
+            self.step_inputs.append(th.zeros_like(ep_batch["actions_onehot"][:, t_ep]) if t_ep == 0 else ep_batch["actions_onehot"][:, t_ep-1])
+        if self.args.obs_agent_id:
+            self.step_inputs.append(th.eye(self.n_agents, device=ep_batch.device).unsqueeze(0).expand(ep_batch.batch_size, -1, -1))
+
+        # Array to store the chosen actions
+        chosen_actions = th.zeros((1, self.n_agents))
 
         # choose execution sequence
         execute_order = np.random.permutation(augmanted_agents) if self.random_ordering else np.arange(augmanted_agents)
@@ -34,8 +43,10 @@ class PSeqMAC(BasicMAC):
             
             # calculate values of the current (pseudo-)state batch and select action
             # * this section can be extended for policy-based or actor-critic algorithms
-            avail_actions = ep_batch["avail_actions"][i, t_ep]
-            values = self.select_agent_action(state_batch) # check that availd[i, t_ep] is the right argument
+            avail_actions = ep_batch["avail_actions"][:, t_ep, i].unsqueeze(dim=1)
+
+            # calculate action based on pseudo-state
+            values = self.select_agent_action(ep_batch, i)
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -43,10 +54,21 @@ class PSeqMAC(BasicMAC):
 
         return chosen_actions
 
-    
-    def select_agent_action(self, state_batch):
-        agent_inputs = self._build_inputs(ep_batch, t) # TODO fill
+    # get the observation from action model and calculate based on this observation
+    def select_agent_action(self,  ep_batch, i):
+
+        agent_inputs, obs_probs = self._build_inputs(i)
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
         
-        return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
-        # TODO make sure that the output is correct (q values?)
+        # augment q-values/probabiliteis over possible states
+        agent_outs = th.sum(obs_probs * agent_outs, dim=0)
+        #### TODO build the agent-core network (DDQN)
+
+        return agent_outs.view(ep_batch.batch_size, len(i) if type(i)==list else 1, -1)
+   
+
+    # override BasicMAC _build_inputs, and get observation from action model #! after building obs, may need to change to observation.shape[1]
+    def _build_inputs(self, i):
+        observation, obs_prob = th.rand((8,75), device=th.device('cuda')), th.rand((8,1), device=th.device('cuda')) #! self.action_model.get_obs_agent(i)
+        inputs = [observation] + [x[:, i].repeat((observation.shape[0], 1)) for x in self.step_inputs]
+        return th.cat([x.reshape(observation.shape[0], -1) for x in inputs], dim=1), obs_prob

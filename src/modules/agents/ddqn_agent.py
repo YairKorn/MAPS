@@ -5,7 +5,7 @@ import torch.nn.functional as F
 # because in stochastic world the network runs a batch of state, that distort the hidden state
 HIDDEN = [nn.Linear, nn.GRUCell] 
 
-class DualAgent(nn.Module):
+class DDQNAgent(nn.Module):
     """ Identical to rnn_agent, but does not compute value/probability for each action, only the hidden state. """
     def __init__(self, input_shape, args, reccurent=True):
         nn.Module.__init__(self)

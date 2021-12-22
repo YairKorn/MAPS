@@ -16,7 +16,7 @@ class ActionModel():
         self.mcts_batch_size = getattr(args, "mcts_batch_size", 32) if getattr(args, "apply_monte_carlo", True) else sys.maxsize
 
         # partial observability
-        self.full_obs        = getattr(args, "observe_state", False) #! make sure that it works
+        self.full_observable = getattr(args, "observe_state", False) #! make sure that it works
 
         # general
         self.actions = np.ones(shape=(1, args.n_actions)) # the probabilities for different outcomes of actions; self.actions[action].shape = (-1, 1)
@@ -28,9 +28,10 @@ class ActionModel():
 
     """ Update the state based on an action """
     def step(self, action):
+        self.buffer.append()
         self.state, self.state_prob = self._MCTS(action) if self.stochastic_env else self._apply_action_on_state(self.state[0], action), 1.0
 
-    """ For stochastic environents (if "apply_monte_carlo" is True), use monte-carlo to select possible outcomes """
+    """ For stochastic environents, use monte-carlo to select possible outcomes """
     def _MCTS(self, action):
         different_states = np.shape(self.state_prob)[0]
         # calculate the probabilites of all possible outcomes, based on the assumed state and the action possible outcomes
@@ -47,7 +48,7 @@ class ActionModel():
 
     # Use the general state to create a partial-observability observation for the agents
     def _build_observation(self, i):
-        if self.full_obs:
+        if self.full_observable:
             return deepcopy(self.state)
 
         #! build

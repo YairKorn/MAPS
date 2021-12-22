@@ -11,9 +11,7 @@ MOVEMENTS
 Both predators and prey can move to the 4 adjacent positions or remain in the current one. Movement is executed 
 sequentially: first all predators move in a random order, then all prey chooses a random available action 
 (i.e. an action that would not lead to a collision with another entity) in a random order. 
-Depending on the given parameters, a prey is either captured if it cannot move (i.e. if 4 agents block 
-all 4 adjacent fields) or if a special 'catch' action is executed by a sufficient number of adjacent predators.
-Caught prey is removed. Depending on the given parameters, the catching predators are removed as well.
+Depending on the given parameters, a prey is either captured if it cannot move (i.e. if 4 agents int_typewell.
 
 REWARDS 
 A captured prey is removed and yields a collaborative reward. 

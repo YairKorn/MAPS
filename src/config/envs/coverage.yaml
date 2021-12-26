@@ -1,0 +1,48 @@
+# Coverage environment for experiments of PSeq, including:
+#   1. Standard coverage (n agents in grid world)
+#   2. Adversarial coverage (with threat in the world) - stochastic world
+
+env: "mrac"            # a grid-world class that allows to hunt two different types of prey
+
+env_args:
+    random_seed: null       # defines np random seed for reproducability of tests
+
+    obstacles_location: []  # specified location of obstacles in the grid
+    simulated_mode: False   # if enabled, agents doesn't disabled by threats
+    threat_location: []     # specified location and severty of threats in the grid
+    toroidal: False         # whether the world is bounded (False) or toroidal (True)
+    world_shape: [10, 10]   # the shape of the grid-world [height, width]
+
+    random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
+    shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
+    obstacle_rate: 0.2      # ... percentage of the area contains obstacles
+    threats_rate: 0.2       # ... percentage of the area contains threats using normal distribution with
+    risk_avg: 0.2        # ... ... average of threats risk
+    risk_std: 0.2        # ... ... standard deviation of threats risk
+
+    observation_range: -1   # radius of observation, -1 means full observability
+    observe_ids: True       # observation includes agents' ids
+    observe_state: False    # whether an observation is only partial (False) or central including agent position (True)
+    abs_location: False     # add one-hot layer to the observation with agent's self-location
+    watch_covered: True     # observe which cells was covered and which wasn't
+    watch_surface: True     # observe where obstacles and threat are located
+
+    allow_collisions: True  # "True" allow two agents to be in the same cell
+    allow_stay: True        # does agents can do "nothing action"
+    n_agents: 5
+
+    agents_placement: []    # if random_placement is False, location can be specified
+    random_placement: True  # location of agents is randomized every episode
+
+    reward_cell: 1.0        # positive reward for every cell covered (for the first time)
+    reward_collision: 0.0   # negative reward for collisions
+    reward_invalid: 0.0     # negative reward for trying to make an invalid move
+    reward_succes: 0.0      # positive reward given if grid is fully covered
+    reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
+    reward_time: -0.1       # negative reward for every timestep
+
+
+    episode_limit: 200      # maximum number of time steps per episode
+
+t_max: 3000000              # number of time steps of the experiment
+

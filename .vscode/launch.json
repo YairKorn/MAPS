@@ -5,12 +5,26 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "CurrentFile",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "PyMARL",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
-            "args": ["--config=pseq", "--env-config=rel_overgen", "with", "env_args.miscapture_punishment=0", "-d"]
+            "args": [
+                "--config=pseq",
+                "--env-config=rel_overgen",
+                "with",
+                "env_args.miscapture_punishment=0",
+                "-d"
+            ]
         }
     ]
 }

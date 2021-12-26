@@ -3,25 +3,32 @@ ENV DESCRIPTION:
 This environment simulates the MRAC (multi-robot adversarial coverage), i.e. coverage with threatened areas.
 The environment includes n robots located in grid of MxN cells, and each cell should be visited by a robot at least once.
 
+CONFIGURATION:
+The simulator can create an environment based on some key parameters, or use pre-defined configuration.
+In addition, the simulator can create new environment every episode for "meta-learning" (enabling "shuffle_config").
+In that case, "watch_surface" flag must be enabled, otherwise the environment violates the Markov principle.
 
 
 NOTES:
 * The environment does not include the extension for heterogeneous robots
 * Environment is not compatable for batch mode for now (lean code without extra features)
+? enable random placement of agents only once?
 
-! what about disabling STAY action?
+TODO ==> write tests and debug: test debug + observation
+TODO run env using PyMARL and make sure it runs
 """
+import os, yaml #! test - remove
 
-from numpy.core.fromnumeric import shape
-from torch._C import int16
-from envs.multiagentenv import MultiAgentEnv
-from utils.dict2namedtuple import convert
+from src.envs.multiagentenv import MultiAgentEnv
+from src.utils.dict2namedtuple import convert
+from collections import deque as queue
 import numpy as np
 
 
-class StagHunt(MultiAgentEnv):
+class AdversarialCoverage(MultiAgentEnv):
 
-    action_labels = {'stay': 0, 'right': 1, 'down': 2, 'left': 3, 'up': 4}
+    action_labels = {'right': 0, 'down': 1, 'left': 2, 'up': 3, 'stay': 4}
+    action_effect = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=np.int16)
 
     def __init__(self, **kwargs):
         # Unpack arguments from sacred
@@ -30,44 +37,61 @@ class StagHunt(MultiAgentEnv):
             args = convert(args)
         self.args = args
 
-        # Initialization
-        np.random.seed(getattr(args, "random_seed", None)) # set seed for numpy
-        self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
-        # grid structure: agent locations | coverage status | surface
-        
-        self.obstacles = getattr(args, "obstacles_location", []) # locating obstacles on the map
-        self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
-        
-        threats   = getattr(args, "threat_location",    []) # locating threats on the map
-        self.grid[threats[:, 0], threats[:, 1]] = threats[:, 2]
-
-        self.episode_limit = args.episode_limit
-        self.simulated_mode   = getattr(args, "simulated_mode", False) # never disable a robot but give a negative reward for entering a threat
-        
-        # Observation properties
-        self.observe_ids = getattr(args, "observe_ids", False)
-        self.self_location = getattr(args, "self_location", True)
-        self.watch_covered = getattr(args, "watch_covered", False)
-        self.watch_surface = getattr(args, "watch_surface", False)
-        self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
-        self.n_feats = 1 + self.self_location + self.watch_covered + self.watch_surface # features per cell
-        
-        self.state_size = self.grid.size
-        #! state representation - agent-centric or general???
-
-        # Build the environment
+        # Set up the environment
         world_shape = np.asarray(args.world_shape, dtype=np.int16) 
         self.height, self.width = world_shape
         self.toroidal = getattr(args, "toroidal", False)
         self.allow_collisions = getattr(args, "allow_collisions", False)
 
+        # Initialization
+        np.random.seed(getattr(args, "random_seed", None)) # set seed for numpy
+        self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
+        self.n_cells = self.grid[:, :, 0].size
+        # grid structure: agent locations | coverage status | surface
+        
+        self.shuffle_config = getattr(args, "shuffle_config", False)
+        self.obstacle_rate  = getattr(args, "obstacle_rate", 0.2)
+        self.threats_rate   = getattr(args, "threats_rate", 0.2)
+        self.risk_avg       = getattr(args, "risk_avg", 0.2)
+        self.risk_std       = getattr(args, "risk_std", 0.2)
+
+        if not self.shuffle_config and getattr(args, "random_config", False):
+            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+            self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
+            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+        else:
+            self.obstacles = np.asarray(getattr(args, "obstacles_location", [])) # locating obstacles on the map
+            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
+
+            threats = np.asarray(getattr(args, "threat_location", []))           # locating threats on the map
+            threats_location = np.asarray(threats[:, :2], dtype=np.int16)
+            self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
+
+
+        self.episode_limit = args.episode_limit
+        self.simulated_mode = getattr(args, "simulated_mode", False) # never disable a robot but give a negative reward for entering a threat
+        
+        # Observation properties
+        self.observe_state = getattr(args, "observe_state", False)
+        self.observe_ids = getattr(args, "observe_ids", False)
+        self.abs_location = getattr(args, "abs_location", True)
+        self.watch_covered = getattr(args, "watch_covered", True)
+        self.watch_surface = getattr(args, "watch_surface", True)
+        self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
+        self.n_features = 1 + self.abs_location + self.watch_covered + self.watch_surface
+        
+        self.state_size = self.grid.size
+        self.obs_size = self.n_features * (self.n_cells if self.abs_location else (2 * self.observation_range + 1) ** 2)
+        #! state representation - agent-centric or general???
+        
         # Agents' action space
         self.n_agents = args.n_agents
-        self.n_actions = 5
-        self.action_effect = np.asarray([[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0]], dtype=np.int16)
+        self.allow_stay = getattr(args, "allow_stay", True)
+        self.n_actions = 4 + self.allow_stay
+        self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(not self.toroidal))
         self.random_placement = getattr(args, "random_placement", True) # random placements of the robots every episode, override "agent_placement"
         
-        placements = getattr(args, "agents_placement", np.empty())   # otherwise, can select a specific setup
+        placements = np.asarray(getattr(args, "agents_placement", []))   # otherwise, can select a specific setup
         self.agents_placement = placements[:self.n_agents] if placements.size > 0 else self._calc_placement()
         if self.agents_placement.shape[0] < self.n_agents:
             raise ValueError("Failed to locate all agents in the grid")
@@ -76,9 +100,9 @@ class StagHunt(MultiAgentEnv):
         self.time_reward      = getattr(args, "reward_time", -0.1)
         self.collision_reward = getattr(args, "reward_collision", 0.0)
         self.new_cell_reward  = getattr(args, "reward_cell", 1.0)
-        self.succes_reward    = getattr(args, "succes_reward", 0.0)
-        self.invalid_reward   = getattr(args, "invalid_reward", 0.0)
-        self.threat_reward    = getattr(args, "threat_reward", 1.0) # this constant is multiplied by the designed reward function
+        self.succes_reward    = getattr(args, "reward_succes", 0.0)
+        self.invalid_reward   = getattr(args, "reward_invalid", 0.0)
+        self.threat_reward    = getattr(args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
         # Internal variables
         self.agents = np.zeros(shape=(self.n_agents, 2), dtype=np.int16)
@@ -95,8 +119,15 @@ class StagHunt(MultiAgentEnv):
         self.steps = 0
         self.sum_rewards = 0
 
+        # If "shuffle_config" mode in on, the area is changed every episode (obstacles and threats)
+        if self.shuffle_config:
+            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+            self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
+            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+
         # Place agents & set obstacles to marked as "covered"
         self.agents = self._place_agents()
+        self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
         self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
         #! return self.get_obs(), self.get_state() #* check this out!
 
@@ -105,7 +136,7 @@ class StagHunt(MultiAgentEnv):
     def step(self, actions):
         if actions.size != self.n_agents:
             raise ValueError("Wrong number of actions")
-        actions *= self.agents_enabled # mask actions of disabled agents (disabled -> stay)
+        actions[self.agents_enabled] = self.action_labels["stay"]  # mask actions of disabled agents (disabled -> stay)
         
         # rewards for agents
         reward = self.time_reward
@@ -124,7 +155,7 @@ class StagHunt(MultiAgentEnv):
 
         # Threats reward - indicate for the agents that they are in danger
         total_threats = np.sum(self.grid[self.agents[0, self.alive_agents], self.agents[1, self.alive_agents], 2])
-        remaining_cells = self.grid[:, :, 1].size - np.sum(self.grid[:, :, 1])
+        remaining_cells = self.n_cells - np.sum(self.grid[:, :, 1])
         alive_agents = np.sum(self.agents_enabled)
 
         reward += (total_threats * remaining_cells * (self.time_reward if alive_agents > 1 else 1)) / alive_agents
@@ -133,7 +164,7 @@ class StagHunt(MultiAgentEnv):
         threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[0, :], self.agents[1, :], 2]
         self.agents_enabled *= threat_effect
 
-        mission_succes = np.sum(self.grid[:, :, 1] == self.grid[:, :, 1].size)
+        mission_succes = np.sum(self.grid[:, :, 1] == self.n_cells)
         reward += mission_succes * self.succes_reward
 
         self.steps += 1
@@ -144,17 +175,77 @@ class StagHunt(MultiAgentEnv):
         info = {"episode_limit": terminated}
         return reward, terminated, info
 
-    def get_env_info(self):
-        info = MultiAgentEnv.get_env_info(self)
-        return info
+    # Claculate avaiable actions for all the agents
+    def get_avail_actions(self):
+        return [self.get_avail_agent_actions(agent) for agent in range(self.n_agents)]
+
+    # Calculate the available actions for a specific agent
+    def get_avail_actions_agent(self, agent):
+        next_location = self.agents[agent] + self.action_effect
+        return np.where(self.avail_actions[next_location[:, 0], next_location[:, 1]] == 0)
+
+    def close(self):
+        print("Closing MRAC Environment")
 
     ################################ Obs Functions ################################
     def get_obs(self):
         agents_obs = [self.get_obs_agent(i) for i in range(self.n_agents)]
         return agents_obs
 
+    # Return the full state (privileged knowledge)
     def get_state(self):
-        return self.grid.copy().reshape(self.state_size)
+        observation = self.grid.copy()
+        if not self.observe_ids: # remove agents' id from observation
+            observation[:, :, 0] = (observation[:, :, 0] != 0)
+        
+        return observation.reshape(self.state_size)
+
+    # There are 3 observation modes:
+    #   1. Fully-observable (the whole area is observed) - observation_range = -1
+    #   2. Partial-observability with absolute location (location of agent is marked on the map)
+    #   3. Partial-observability with relative location (agent don't know where they're on the map)
+    def get_obs_agent(self, agent_id):
+        # Filter the grid layers that available to the agent
+        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
+
+        # Observation-mode 1/2 - return the whole grid
+        if self.abs_location:
+            observation = self.grid[:, :, watch].copy()
+            agent_location = (self.agents[agent_id[0]], self.agents[agent_id[1]])
+
+            if self.observation_range >= 0: # for partial observability, part of the grid is masked
+                pass  #! complete to partial-observability with absolute location -> mask the invisiblee parts of the state
+
+        # Observation-mode 3 - return a (2*range + 1)x(2*range + 1) slice from the grid
+        else:
+            observation = None #! complete the partial-observability with relative location -> calculate the borders, maybe padding with zeros...
+            agent_location = (self.observation_range, self.observation_range)
+        
+        # Remove agents' id from observation if defined
+        if not self.observe_ids: 
+            observation[:, :, 0] = (observation[:, :, 0] != 0)
+
+        # Add agent's location (one-hot)
+        one_hot = np.zeros_like(observation[:, :, 0])
+        one_hot[agent_location[0], agent_location[1]] = 1.0
+
+        return np.concatenate(one_hot.reshape(-1), observation.reshape(-1))
+
+    def get_state_size(self):
+        return self.state_size
+
+    def get_total_actions(self):
+        return self.n_actions
+
+    def get_obs_size(self):
+        return self.obs_size
+
+    def get_env_info(self):
+        info = MultiAgentEnv.get_env_info(self)
+        return info
+
+    def get_stats(self):
+        pass
 
     ################################ Internal Functions ################################
     def _enforce_validity(self, new_locations):
@@ -191,12 +282,46 @@ class StagHunt(MultiAgentEnv):
         self.grid[self.agents[agent[0]], self.agents[agent[1]], 1] = 1.0
         return new_cell, None
 
+    def _place_obstacles(self, obstacle_rate, num_trials=10):
+        # Try to locate obstacles in the grid such that it remain reachable
+        for _ in range(num_trials):
+            # Place obstacles randomly in the grid
+            map_grid = -1 * (np.random.rand(self.height, self.width) < obstacle_rate)
+
+            # Check that the obstacles distribution is valid
+            test_grid = np.pad(map_grid, 1, constant_values=-1)
+            root = np.stack(np.where(test_grid != -1)).transpose()[0, :]
+            test_grid[root[0], root[1]] = 1 # mark root as visited
+
+            q = queue() # queue for BFS (find if the grid is reachable)
+            q.append(root)
+            while q:
+                cell = q.popleft()
+                neighbors = cell + self.action_effect[:4]
+                neighbors = neighbors[test_grid[neighbors[:, 0], neighbors[:, 1]] == 0] # neighbors that are free (no obstacle) and wasn't visited
+                
+                test_grid[neighbors[:, 0], neighbors[:, 1]] = 1 # mark as visited
+                list(map(q.append, neighbors)) # add free-cell neighbors into queue
+
+            if np.sum(np.absolute(test_grid[1:-1, 1:-1])) == self.n_cells: # obstacles (-1) + reachable cells (1) == grid size, i.e., the grid is reachable
+                return map_grid
+
+        raise RuntimeError("Cannot place obstacles in area, try lower obstacles ratio")
+
+    def _place_threats(self, threats_rate, risk_avg, risk_std):
+        avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells
+        
+        # normalize the threat_rate s.t. rate is relative to free cells and not the whole grid
+        map_grid = avail_cell * (np.random.rand(self.height, self.width) < threats_rate * (avail_cell.size/np.sum(avail_cell)))
+        map_grid = np.maximum(np.minimum(map_grid * np.random.normal(loc=risk_avg, scale=risk_std, size=map_grid.shape), 1), 0) # place threats using truncated normal distribution
+        return map_grid
+
     def _place_agents(self):
         # Random placement - select random free cells for initiating the agents
         if self.random_placement:
             avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells
-            l_cells = np.random.choice(self.grid[:, :, 2].size, self.n_agents, replace=False, p=avail_cell.reshape(-1)/sum(avail_cell))
-            return np.stack((l_cells/self.width, l_cells%self.width)).astype(np.int16)
+            l_cells = np.random.choice(self.n_cells, self.n_agents, replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
+            return np.stack((l_cells/self.width, l_cells%self.width)).transpose().astype(np.int16)
 
         # Else, set the agents in the set placement (random placement override setted placements)
         return self.agents_placement.copy()
@@ -204,3 +329,11 @@ class StagHunt(MultiAgentEnv):
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid
         return np.stack(np.where(self.grid[:, :, 2] != -1)).transpose()[:self.n_agents]
+
+########################################### Tests Functions ###########################################
+if __name__ == '__main__':
+    CONFIG_PATH = os.path.join('.', 'src', 'test', 'coverage_test.yaml')
+    with open(CONFIG_PATH, 'r') as config:
+        args = yaml.safe_load(config)['env_args']
+    
+    env = AdversarialCoverage(**args)

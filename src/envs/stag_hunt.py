@@ -27,12 +27,12 @@ into a 1d vector of size (2*obs_size), including all predators and prey the agen
 State output is the entire grid, containing all predator and prey.
 '''
 
-from envs.multiagentenv import MultiAgentEnv
+from src.envs.multiagentenv import MultiAgentEnv
 import torch as th
 import numpy as np
 import random
 import pygame
-from utils.dict2namedtuple import convert
+from src.utils.dict2namedtuple import convert
 
 
 # Data type definitions

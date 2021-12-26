@@ -14,7 +14,6 @@ NOTES:
 * Environment is not compatable for batch mode for now (lean code without extra features)
 ? enable random placement of agents only once?
 
-TODO ==> write tests and debug: test debug + observation
 TODO run env using PyMARL and make sure it runs
 """
 import os, yaml #! test - remove
@@ -83,7 +82,6 @@ class AdversarialCoverage(MultiAgentEnv):
         
         self.state_size = self.grid.size
         self.obs_size = self.n_features * (self.n_cells if self.abs_location else (2 * self.observation_range + 1) ** 2)
-        #! state representation - agent-centric or general???
         
         # Agents' action space
         self.allow_stay = getattr(args, "allow_stay", True)
@@ -95,10 +93,11 @@ class AdversarialCoverage(MultiAgentEnv):
         self.agents_placement = placements[:self.n_agents] if placements.size > 0 else self._calc_placement()
         
         # Sanity-checking for agents location
-        if self.agents_placement.shape[0] < self.n_agents:
-            raise ValueError("Failed to locate all agents in the grid")
-        if any(self.grid[self.agents_placement[:, 0], self.agents_placement[:, 1], 2] == -1):
-            raise ValueError("Agents cannot be located on obstacles, check out the configuration file")
+        if not self.random_placement:
+            if self.agents_placement.shape[0] < self.n_agents:
+                raise ValueError("Failed to locate all agents in the grid")
+            if any(self.grid[self.agents_placement[:, 0], self.agents_placement[:, 1], 2] == -1):
+                raise ValueError("Agents cannot be located on obstacles, check out the configuration file")
 
         # Reward function
         self.time_reward      = getattr(args, "reward_time", -0.1)
@@ -168,7 +167,11 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
         threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
+        temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
+
+        d = temp_agent_enabled != self.agents_enabled # agents disabled right now are removed from the grid
+        self.grid[self.agents[d, 0], self.agents[d, 1], 0] = 0
 
         mission_succes = np.sum(self.grid[:, :, 1]) == self.n_cells
         reward += mission_succes * self.succes_reward

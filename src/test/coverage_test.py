@@ -2,12 +2,9 @@ import yaml, pytest, os
 import numpy as np
 from envs.coverage import AdversarialCoverage
 
-#!!! --> Delete disabled agents from observation
-#!!! --> Follow the dynamic of the environment
-#!!! --> Compatability-check for PyMARL
-
 # TODO: Further test: 
 # - reward function
+# - disabling of a robot
 
 # args are reseted every test
 CONFIG_PATH = os.path.join('.', 'src', 'test', 'coverage_test.yaml')
@@ -34,20 +31,18 @@ def test_init():
     args['random_config'] = True
     args['random_placement'] = True
 
-    with pytest.raises(RuntimeError, match=r"Cannot place .*"):
-        args['obstacle_rate'] = 0.75 # to many obstacles - grid is not fully-reachable
-        env = AdversarialCoverage(**args)
+    # to many obstacles - grid is not fully-reachable, then reduce the obstacle rate
+    args['obstacle_rate'] = 0.75 
+    env = AdversarialCoverage(**args)
     
-    with pytest.raises(RuntimeError, match=r"Cannot place .*"):
-        args['obstacle_rate'] = 1.00 # to many obstacles - not enough place for the agents
-        env = AdversarialCoverage(**args)
+    # to many obstacles - not enough place for the agents, then reduce the obstacle rate
+    args['obstacle_rate'] = 1.00 
+    env = AdversarialCoverage(**args)
     args['obstacle_rate'] = 0.20 
 
     # ... Random allocation of threats
     args['threats_rate'] = 1.00
     args['risk_avg'] = 0.50
-    #! cont: apply actions and calculate reward
-    #! change rewards and recalculate
     args['risk_std'] = 1.00
     env = AdversarialCoverage(**args)
     test_grid = env.grid[:, :, 2]
@@ -123,6 +118,7 @@ def test_e2e(rounds=100):
 
         # Select random values for simulator
         args['world_shape'] = np.random.randint(4, 12,size=(2))
+        args['n_agents'] = np.random.randint(2, 5)
         args['obstacle_rate'] = np.random.rand() * 0.4
         args['threats_rate'] = np.random.rand()
         args['risk_avg'] = np.random.rand() * 0.3

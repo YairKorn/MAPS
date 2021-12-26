@@ -19,8 +19,8 @@ TODO run env using PyMARL and make sure it runs
 """
 import os, yaml #! test - remove
 
-from src.envs.multiagentenv import MultiAgentEnv
-from src.utils.dict2namedtuple import convert
+from envs.multiagentenv import MultiAgentEnv
+from utils.dict2namedtuple import convert
 from collections import deque as queue
 import numpy as np
 
@@ -42,9 +42,10 @@ class AdversarialCoverage(MultiAgentEnv):
         self.height, self.width = world_shape
         self.toroidal = getattr(args, "toroidal", False)
         self.allow_collisions = getattr(args, "allow_collisions", False)
+        self.n_agents = args.n_agents
 
         # Initialization
-        np.random.seed(getattr(args, "random_seed", None)) # set seed for numpy
+        np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
         self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
         self.n_cells = self.grid[:, :, 0].size
         # grid structure: agent locations | coverage status | surface
@@ -59,7 +60,7 @@ class AdversarialCoverage(MultiAgentEnv):
             self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
             self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
             self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
-        else:
+        elif not self.shuffle_config:
             self.obstacles = np.asarray(getattr(args, "obstacles_location", [])) # locating obstacles on the map
             self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
 
@@ -85,16 +86,19 @@ class AdversarialCoverage(MultiAgentEnv):
         #! state representation - agent-centric or general???
         
         # Agents' action space
-        self.n_agents = args.n_agents
         self.allow_stay = getattr(args, "allow_stay", True)
         self.n_actions = 4 + self.allow_stay
-        self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(not self.toroidal))
+        self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(self.toroidal - 1))
         self.random_placement = getattr(args, "random_placement", True) # random placements of the robots every episode, override "agent_placement"
         
         placements = np.asarray(getattr(args, "agents_placement", []))   # otherwise, can select a specific setup
         self.agents_placement = placements[:self.n_agents] if placements.size > 0 else self._calc_placement()
+        
+        # Sanity-checking for agents location
         if self.agents_placement.shape[0] < self.n_agents:
             raise ValueError("Failed to locate all agents in the grid")
+        if any(self.grid[self.agents_placement[:, 0], self.agents_placement[:, 1], 2] == -1):
+            raise ValueError("Agents cannot be located on obstacles, check out the configuration file")
 
         # Reward function
         self.time_reward      = getattr(args, "reward_time", -0.1)
@@ -128,6 +132,7 @@ class AdversarialCoverage(MultiAgentEnv):
         # Place agents & set obstacles to marked as "covered"
         self.agents = self._place_agents()
         self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
+        self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
         self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
         #! return self.get_obs(), self.get_state() #* check this out!
 
@@ -136,7 +141,7 @@ class AdversarialCoverage(MultiAgentEnv):
     def step(self, actions):
         if actions.size != self.n_agents:
             raise ValueError("Wrong number of actions")
-        actions[self.agents_enabled] = self.action_labels["stay"]  # mask actions of disabled agents (disabled -> stay)
+        actions[np.where(self.agents_enabled == 0)] = self.action_labels["stay"]  # mask actions of disabled agents (disabled -> stay)
         
         # rewards for agents
         reward = self.time_reward
@@ -147,24 +152,25 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Move the agents (avoid collision if allow_collision is False)
         for agent in np.random.permutation(self.n_agents):
-            if new_locations[agent] != self.agents[agent]: # the agent should move
+            if not np.array_equal(new_locations[agent], self.agents[agent]): # the agent should move
                 new_cell, collision = self._move_agent(agent, new_locations[agent])
                 
                 # calculate reward for the step - includes whether or not a new cell covered & if collision occured
-                reward += new_cell * self.new_cell_reward + collision * self.collision_reward
+                reward += new_cell * self.new_cell_reward + (collision is not None) * self.collision_reward
 
         # Threats reward - indicate for the agents that they are in danger
-        total_threats = np.sum(self.grid[self.agents[0, self.alive_agents], self.agents[1, self.alive_agents], 2])
+        e = np.where(self.agents_enabled == 1)[0] # enabled agents
+        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2])
         remaining_cells = self.n_cells - np.sum(self.grid[:, :, 1])
-        alive_agents = np.sum(self.agents_enabled)
+        alive_agents = e.size
 
-        reward += (total_threats * remaining_cells * (self.time_reward if alive_agents > 1 else 1)) / alive_agents
+        reward += (total_threats * remaining_cells * (self.time_reward if alive_agents > 1 else -1)) / alive_agents
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[0, :], self.agents[1, :], 2]
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
         self.agents_enabled *= threat_effect
 
-        mission_succes = np.sum(self.grid[:, :, 1] == self.n_cells)
+        mission_succes = np.sum(self.grid[:, :, 1]) == self.n_cells
         reward += mission_succes * self.succes_reward
 
         self.steps += 1
@@ -180,9 +186,9 @@ class AdversarialCoverage(MultiAgentEnv):
         return [self.get_avail_agent_actions(agent) for agent in range(self.n_agents)]
 
     # Calculate the available actions for a specific agent
-    def get_avail_actions_agent(self, agent):
-        next_location = self.agents[agent] + self.action_effect
-        return np.where(self.avail_actions[next_location[:, 0], next_location[:, 1]] == 0)
+    def get_avail_agent_actions(self, agent):
+        next_location = self.agents[agent] + self.action_effect[:self.n_actions] + 1 # availd.actions is padded
+        return np.where(self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1)[0]
 
     def close(self):
         print("Closing MRAC Environment")
@@ -211,7 +217,7 @@ class AdversarialCoverage(MultiAgentEnv):
         # Observation-mode 1/2 - return the whole grid
         if self.abs_location:
             observation = self.grid[:, :, watch].copy()
-            agent_location = (self.agents[agent_id[0]], self.agents[agent_id[1]])
+            agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
 
             if self.observation_range >= 0: # for partial observability, part of the grid is masked
                 pass  #! complete to partial-observability with absolute location -> mask the invisiblee parts of the state
@@ -226,10 +232,11 @@ class AdversarialCoverage(MultiAgentEnv):
             observation[:, :, 0] = (observation[:, :, 0] != 0)
 
         # Add agent's location (one-hot)
-        one_hot = np.zeros_like(observation[:, :, 0])
-        one_hot[agent_location[0], agent_location[1]] = 1.0
+        one_hot = np.expand_dims(np.zeros_like(observation[:, :, 0]), axis=2)
+        one_hot[agent_location[0], agent_location[1], 0] = 1.0
 
-        return np.concatenate(one_hot.reshape(-1), observation.reshape(-1))
+        # First layer is one-hot of agent's location, the other are the state data, reshaped to 1D vector
+        return np.dstack((one_hot, observation)).reshape(-1)
 
     def get_state_size(self):
         return self.state_size
@@ -255,58 +262,62 @@ class AdversarialCoverage(MultiAgentEnv):
         if self.toroidal:
             new_locations %= self.grid.shape[:2]
         else:
-            temp_loc = np.maximum(np.minimum(new_locations, self.env_max - 1), 0)
+            temp_loc = np.stack([np.maximum(np.minimum(new_locations[:, i], self.grid.shape[i] - 1), 0) for i in [0, 1]], axis=1)
             agents_invalid = np.where(temp_loc != new_locations)[0]
             new_locations = temp_loc
 
         # Enforce obstacle validity
-        into_obstacle = np.where(self.grid[new_locations[:, 0], new_locations[:, 1]] == -1)
+        into_obstacle = np.where(self.grid[new_locations[:, 0], new_locations[:, 1], 2] == -1)[0]
         new_locations[into_obstacle] = self.agents[into_obstacle]
 
         # return new locations & list of agents tried to preform invalid actions
-        return new_locations, np.concatenate(agents_invalid, into_obstacle)
+        return new_locations, np.concatenate((agents_invalid, into_obstacle))
 
 
     def _move_agent(self, agent, new_location):
         # Check for collisions
-        if self.allow_collisions or self.grid[new_location[0], new_location[1], 0] != 0:
+        if (not self.allow_collisions) and (self.grid[new_location[0], new_location[1], 0] != 0):
             return False, np.asarray([agent, self.grid[new_location[0], new_location[1], 0] - 1])
         
         # Move the agent
-        self.grid[self.agents[agent[0]], self.agents[agent[1]], 0] = 0.0
+        self.grid[self.agents[agent, 0], self.agents[agent, 1], 0] = 0.0
         self.agents[agent] = new_location
-        self.grid[self.agents[agent[0]], self.agents[agent[1]], 0] = agent + 1.0
+        self.grid[self.agents[agent, 0], self.agents[agent, 1], 0] = agent + 1.0
         
         # Mark the new cell as covered
-        new_cell = self.gragents_enabledid[self.agents[agent[0]], self.agents[agent[1]], 1] == 0.0
-        self.grid[self.agents[agent[0]], self.agents[agent[1]], 1] = 1.0
+        new_cell = self.grid[self.agents[agent, 0], self.agents[agent, 1], 1] == 0.0
+        self.grid[self.agents[agent, 0], self.agents[agent, 1], 1] = 1.0
         return new_cell, None
 
-    def _place_obstacles(self, obstacle_rate, num_trials=10):
+    def _place_obstacles(self, obstacle_rate, num_trials=25):
         # Try to locate obstacles in the grid such that it remain reachable
-        for _ in range(num_trials):
-            # Place obstacles randomly in the grid
-            map_grid = -1 * (np.random.rand(self.height, self.width) < obstacle_rate)
+        while True:
+            for _ in range(num_trials):
+                # Place obstacles randomly in the grid
+                map_grid = -1 * (np.random.rand(self.height, self.width) < obstacle_rate)
+                if -1 * np.sum(map_grid) + self.n_agents >= map_grid.size: # not enough place for the agents 
+                    continue
 
-            # Check that the obstacles distribution is valid
-            test_grid = np.pad(map_grid, 1, constant_values=-1)
-            root = np.stack(np.where(test_grid != -1)).transpose()[0, :]
-            test_grid[root[0], root[1]] = 1 # mark root as visited
+                # Check that the obstacles distribution is valid
+                test_grid = np.pad(map_grid, 1, constant_values=-1)
+                root = np.stack(np.where(test_grid != -1)).transpose()[0, :]
+                test_grid[root[0], root[1]] = 1 # mark root as visited
 
-            q = queue() # queue for BFS (find if the grid is reachable)
-            q.append(root)
-            while q:
-                cell = q.popleft()
-                neighbors = cell + self.action_effect[:4]
-                neighbors = neighbors[test_grid[neighbors[:, 0], neighbors[:, 1]] == 0] # neighbors that are free (no obstacle) and wasn't visited
-                
-                test_grid[neighbors[:, 0], neighbors[:, 1]] = 1 # mark as visited
-                list(map(q.append, neighbors)) # add free-cell neighbors into queue
+                q = queue() # queue for BFS (find if the grid is reachable)
+                q.append(root)
+                while q:
+                    cell = q.popleft()
+                    neighbors = cell + self.action_effect[:4]
+                    neighbors = neighbors[test_grid[neighbors[:, 0], neighbors[:, 1]] == 0] # neighbors that are free (no obstacle) and wasn't visited
+                    
+                    test_grid[neighbors[:, 0], neighbors[:, 1]] = 1 # mark as visited
+                    list(map(q.append, neighbors)) # add free-cell neighbors into queue
 
-            if np.sum(np.absolute(test_grid[1:-1, 1:-1])) == self.n_cells: # obstacles (-1) + reachable cells (1) == grid size, i.e., the grid is reachable
-                return map_grid
+                if np.sum(np.absolute(test_grid[1:-1, 1:-1])) == self.n_cells: # obstacles (-1) + reachable cells (1) == grid size, i.e., the grid is reachable
+                    return map_grid
 
-        raise RuntimeError("Cannot place obstacles in area, try lower obstacles ratio")
+            obstacle_rate *= 0.9 # reduce the obstacle rate because the current rate does not allow to create reachable environment
+            print(f"INFO: Cannot create reachable environemnt, reduce obstacle rate to {obstacle_rate}")
 
     def _place_threats(self, threats_rate, risk_avg, risk_std):
         avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells

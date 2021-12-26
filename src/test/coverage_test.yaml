@@ -9,11 +9,11 @@ env_args:
 
     obstacles_location: [[0, 0], [1, 1], [2, 4]]  # specified location of obstacles in the grid
     simulated_mode: False   # if enabled, agents doesn't disabled by threats
-    threat_location: [[0, 1, 0.4], [2, 1, 0.7]]     # specified location and severty of threats in the grid
+    threat_location: [[0, 2, 0.4], [2, 1, 0.7]]     # specified location and severty of threats in the grid
     toroidal: False         # whether the world is bounded (False) or toroidal (True)
     world_shape: [5, 5]   # the shape of the grid-world [height, width]
 
-    random_config: True     # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
+    random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
     obstacle_rate: 0.1      # ... percentage of the area contains obstacles
     threats_rate: 0.2       # ... percentage of the area contains threats using normal distribution with
@@ -23,7 +23,7 @@ env_args:
     observation_range: -1   # radius of observation, -1 means full observability
     observe_ids: True       # observation includes agents' ids
     observe_state: True     # whether an observation is only partial (False) or central including agent position (True)
-    abs_location: False     # add one-hot layer to the observation with agent's self-location
+    abs_location: True      # add one-hot layer to the observation with agent's self-location
     watch_covered: True     # observe which cells was covered and which wasn't
     watch_surface: True     # observe where obstacles and threat are located
 

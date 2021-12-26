@@ -1,7 +1,12 @@
 # Pseudo Sequential - MARL Architecture
   
 ! Under work !
-  
+In case of import errors, add the next command to ~/.bashsrc:
+```
+export PYTHONPATH="${PYTHONPATH}:./src"
+```
+
+
 ## Installation instructions
 Installation instruction from DCG repository
 

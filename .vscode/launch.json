@@ -13,13 +13,25 @@
             "justMyCode": false
         },
         {
-            "name": "PyMARL",
+            "name": "PyMARL_PSeq",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=pseq",
+                "--config=dcg",
+                "--env-config=multi_coverage",
+                "-d"
+            ]        
+        },
+        {
+            "name": "PyMARL_DCG",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config=dcg",
                 "--env-config=rel_overgen",
                 "with",
                 "env_args.miscapture_punishment=0",

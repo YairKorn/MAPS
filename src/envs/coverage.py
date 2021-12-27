@@ -55,18 +55,21 @@ class AdversarialCoverage(MultiAgentEnv):
         self.risk_avg       = getattr(args, "risk_avg", 0.2)
         self.risk_std       = getattr(args, "risk_std", 0.2)
 
-        if not self.shuffle_config and getattr(args, "random_config", False):
-            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
-            self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
-            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
-        elif not self.shuffle_config:
-            self.obstacles = np.asarray(getattr(args, "obstacles_location", [])) # locating obstacles on the map
-            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
+        # place obstacles and threats in the area
+        if not self.shuffle_config:
+            if getattr(args, "random_config", False): # random configuration - only once
+                self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+                self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
+                self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+            else: # place ocnfiguration from configuration file
+                self.obstacles = np.asarray(getattr(args, "obstacles_location", []))
+                if self.obstacles:
+                    self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
 
-            threats = np.asarray(getattr(args, "threat_location", []))           # locating threats on the map
-            threats_location = np.asarray(threats[:, :2], dtype=np.int16)
-            self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
-
+                threats = np.asarray(getattr(args, "threat_location", []))
+                if threats:
+                    threats_location = np.asarray(threats[:, :2], dtype=np.int16)
+                    self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
 
         self.episode_limit = args.episode_limit
         self.simulated_mode = getattr(args, "simulated_mode", False) # never disable a robot but give a negative reward for entering a threat
@@ -132,12 +135,14 @@ class AdversarialCoverage(MultiAgentEnv):
         self.agents = self._place_agents()
         self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
         self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
-        self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
+        if self.obstacles:
+            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
         #! return self.get_obs(), self.get_state() #* check this out!
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
     def step(self, actions):
+        actions = np.asarray(actions.cpu(), dtype=np.int16)
         if actions.size != self.n_agents:
             raise ValueError("Wrong number of actions")
         actions[np.where(self.agents_enabled == 0)] = self.action_labels["stay"]  # mask actions of disabled agents (disabled -> stay)
@@ -191,7 +196,7 @@ class AdversarialCoverage(MultiAgentEnv):
     # Calculate the available actions for a specific agent
     def get_avail_agent_actions(self, agent):
         next_location = self.agents[agent] + self.action_effect[:self.n_actions] + 1 # availd.actions is padded
-        return np.where(self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1)[0]
+        return self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
 
     def close(self):
         print("Closing MRAC Environment")

@@ -5,6 +5,8 @@ from envs.coverage import AdversarialCoverage
 # TODO: Further test: 
 # - reward function
 # - disabling of a robot
+# - configuration without obstacles
+# ! update test of avail actions 
 
 # args are reseted every test
 CONFIG_PATH = os.path.join('.', 'src', 'test', 'coverage_test.yaml')

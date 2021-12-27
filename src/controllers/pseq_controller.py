@@ -66,6 +66,8 @@ class PSeqMAC(BasicMAC):
 
         return agent_outs.view(ep_batch.batch_size, len(i) if type(i)==list else 1, -1)
    
+    def init_hidden(self, batch_size):
+        pass
 
     # override BasicMAC _build_inputs, and get observation from action model #! after building obs, may need to change to observation.shape[1]
     def _build_inputs(self, i):

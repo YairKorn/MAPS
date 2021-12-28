@@ -63,7 +63,7 @@ class AdversarialCoverage(MultiAgentEnv):
                 self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
             else: # place ocnfiguration from configuration file
                 self.obstacles = np.asarray(getattr(args, "obstacles_location", []))
-                if self.obstacles:
+                if self.obstacles != []:
                     self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
 
                 threats = np.asarray(getattr(args, "threat_location", []))
@@ -135,7 +135,7 @@ class AdversarialCoverage(MultiAgentEnv):
         self.agents = self._place_agents()
         self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
         self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
-        if self.obstacles:
+        if self.obstacles != []:
             self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
         #! return self.get_obs(), self.get_state() #* check this out!
 

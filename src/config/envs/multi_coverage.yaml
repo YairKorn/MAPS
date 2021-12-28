@@ -11,14 +11,14 @@ env_args:
     simulated_mode: False   # if enabled, agents doesn't disabled by threats
     threat_location: []     # specified location and severty of threats in the grid
     toroidal: False         # whether the world is bounded (False) or toroidal (True)
-    world_shape: [10, 10]   # the shape of the grid-world [height, width]
+    world_shape: [9, 9]     # the shape of the grid-world [height, width]
 
-    random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
+    random_config: True     # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
-    threats_rate: 0.2       # ... percentage of the area contains threats using normal distribution with
-    risk_avg: 0.2        # ... ... average of threats risk
-    risk_std: 0.2        # ... ... standard deviation of threats risk
+    threats_rate: 0.0       # ... percentage of the area contains threats using normal distribution with
+    risk_avg: 0.2           # ... ... average of threats risk
+    risk_std: 0.2           # ... ... standard deviation of threats risk
 
     observation_range: -1   # radius of observation, -1 means full observability
     observe_ids: True       # observation includes agents' ids
@@ -27,7 +27,7 @@ env_args:
     watch_covered: True     # observe which cells was covered and which wasn't
     watch_surface: True     # observe where obstacles and threat are located
 
-    allow_collisions: True  # "True" allow two agents to be in the same cell
+    allow_collisions: False # "True" allow two agents to be in the same cell
     allow_stay: True        # does agents can do "nothing action"
     n_agents: 5
 
@@ -39,10 +39,10 @@ env_args:
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
     reward_succes: 0.0      # positive reward given if grid is fully covered
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
-    reward_time: -0.1       # negative reward for every timestep
+    reward_time: -1.0       # negative reward for every timestep
 
 
     episode_limit: 200      # maximum number of time steps per episode
 
-t_max: 3000000              # number of time steps of the experiment
+t_max: 20000000              # number of time steps of the experiment
 

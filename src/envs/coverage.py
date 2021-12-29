@@ -16,8 +16,6 @@ NOTES:
 
 TODO run env using PyMARL and make sure it runs
 """
-import os, yaml #! test - remove
-
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
 from collections import deque as queue
@@ -348,11 +346,3 @@ class AdversarialCoverage(MultiAgentEnv):
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid
         return np.stack(np.where(self.grid[:, :, 2] != -1)).transpose()[:self.n_agents]
-
-########################################### Tests Functions ###########################################
-if __name__ == '__main__':
-    CONFIG_PATH = os.path.join('.', 'src', 'test', 'coverage_test.yaml')
-    with open(CONFIG_PATH, 'r') as config:
-        args = yaml.safe_load(config)['env_args']
-    
-    env = AdversarialCoverage(**args)

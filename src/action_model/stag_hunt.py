@@ -1,7 +1,7 @@
 import numpy as np
 
 from utils.dict2namedtuple import convert
-from .model import ActionModel
+from .model_v1 import ActionModel
 
 class StagHunt(ActionModel):
     def __init__(self, args):

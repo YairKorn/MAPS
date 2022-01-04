@@ -20,34 +20,28 @@ class PSeqMAC(BasicMAC):
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         # return a list of "augmanted agents" - agents that in interaction and need to select a joint action
-        # augmanted_agents = self.action_model.update_state(ep_batch["state"][:, t_ep])
-        augmanted_agents = self.action_model.update_state(ep_batch["obs"][:, t_ep, 0])
+        interaction_cg = self.action_model.update_state(ep_batch["state"][:, t_ep])
 
-        # build the basic input that common to all the agents #? Consider Conv2D layer and non-flat observation
-        # based on _build_inputs of BasicMAC
-        self.step_inputs = []
-        if self.args.obs_last_action:
-            self.step_inputs.append(th.zeros_like(ep_batch["actions_onehot"][:, t_ep]) if t_ep == 0 else ep_batch["actions_onehot"][:, t_ep-1])
-        if self.args.obs_agent_id:
-            self.step_inputs.append(th.eye(self.n_agents, device=ep_batch.device).unsqueeze(0).expand(ep_batch.batch_size, -1, -1))
+        # if self.args.obs_last_action:
+        #     self.step_inputs.append(th.zeros_like(ep_batch["actions_onehot"][:, t_ep]) if t_ep == 0 else ep_batch["actions_onehot"][:, t_ep-1])
 
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents))
 
         # choose execution sequence
-        execute_order = np.random.permutation(augmanted_agents) if self.random_ordering else np.arange(augmanted_agents)
+        if self.random_ordering:
+            interaction_cg = np.random.permutation(interaction_cg)
         
-        # PSeq core - run the agents sequentially based on the chosen order
-        for i in execute_order:
-            # get (pseudo-)state batch from action model
-            state_batch = self.action_model.get_obs_agent(i)
+        # PSeq core - runs the agents sequentially based on the chosen order
+        for i in interaction_cg:
+            # get (pseudo-)observation batch from action model
+            obs = self.action_model.get_obs_agent(i)
             
             # calculate values of the current (pseudo-)state batch and select action
-            # * this section can be extended for policy-based or actor-critic algorithms
             avail_actions = ep_batch["avail_actions"][:, t_ep, i].unsqueeze(dim=1)
 
             # calculate action based on pseudo-state
-            values = self.select_agent_action(ep_batch, i)
+            values = self.select_agent_action(obs, i)
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -56,10 +50,10 @@ class PSeqMAC(BasicMAC):
         return chosen_actions
 
     # get the observation from action model and calculate based on this observation
-    def select_agent_action(self,  ep_batch, i):
+    def select_agent_action(self, obs, i):
 
         agent_inputs, obs_probs = self._build_inputs(i)
-        agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
+        agent_outs, self.hidden_states = self.agent(obs, self.hidden_states)
         
         # augment q-values/probabiliteis over possible states
         agent_outs = th.sum(obs_probs * agent_outs, dim=0)

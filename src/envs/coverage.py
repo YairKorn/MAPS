@@ -75,14 +75,13 @@ class AdversarialCoverage(MultiAgentEnv):
         # Observation properties
         self.observe_state = getattr(args, "observe_state", False)
         self.observe_ids = getattr(args, "observe_ids", False)
-        self.abs_location = getattr(args, "abs_location", True)
         self.watch_covered = getattr(args, "watch_covered", True)
         self.watch_surface = getattr(args, "watch_surface", True)
         self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
-        self.n_features = 1 + self.abs_location + self.watch_covered + self.watch_surface
+        self.n_features = 1 + self.watch_covered + self.watch_surface # changable features, does not includes the location
         
         self.state_size = self.grid.size
-        self.obs_size = self.n_features * (self.n_cells if self.abs_location else (2 * self.observation_range + 1) ** 2)
+        self.obs_size = self.n_cells + self.n_features * (self.n_cells if self.observation_range < 0 else (2 * self.observation_range + 1) ** 2)
         
         # Agents' action space
         self.allow_stay = getattr(args, "allow_stay", True)
@@ -212,27 +211,22 @@ class AdversarialCoverage(MultiAgentEnv):
         
         return observation.reshape(self.state_size)
 
-    # There are 3 observation modes:
+    # There are 2 observation modes:
     #   1. Fully-observable (the whole area is observed) - observation_range = -1
     #   2. Partial-observability with absolute location (location of agent is marked on the map)
-    #   3. Partial-observability with relative location (agent don't know where they're on the map)
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
         watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
 
-        # Observation-mode 1/2 - return the whole grid
-        if self.abs_location:
+        # Observation-mode 1 - return the whole grid
+        if self.observation_range < 0:
             observation = self.grid[:, :, watch].copy()
             agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
 
-            if self.observation_range >= 0: # for partial observability, part of the grid is masked
-                pass  #! complete to partial-observability with absolute location -> mask the invisiblee parts of the state
-
-        # Observation-mode 3 - return a (2*range + 1)x(2*range + 1) slice from the grid
+        # Observation-mode 2 - return a (2*range + 1)x(2*range + 1) slice from the grid
         else:
-            observation = None #! complete the partial-observability with relative location -> calculate the borders, maybe padding with zeros...
-            agent_location = (self.observation_range, self.observation_range)
-        
+            pass #! complete to partial-observability with absolute location -> mask the invisiblee parts of the state
+
         # Remove agents' id from observation if defined
         if not self.observe_ids: 
             observation[:, :, 0] = (observation[:, :, 0] != 0)

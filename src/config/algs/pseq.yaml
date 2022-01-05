@@ -8,7 +8,7 @@ epsilon_finish: 0.05          # Final epsilon for exploration
 epsilon_anneal_time: 50000    # Number of time steps until exploration has finished
 
 # specify learner, controller and agent
-agent: "rnn"             # A RNN agent that returns its hidden state instead of its value # TODO select architecture
+agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value # TODO select architecture
 agent_output_type: "q"        # The output format is Q-values
 learner: "pseq_learner"       # The learner for PSeq
 mac: "pseq"                   # The multi-agent controller for PSeq

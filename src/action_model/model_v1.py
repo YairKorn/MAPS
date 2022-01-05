@@ -1,5 +1,6 @@
 import numpy as np
 from components.episode_buffer import ReplayBuffer
+from utils.dict2namedtuple import convert
 
 """ Basic action model class - action models inherit from it """
 class ActionModel():
@@ -7,6 +8,11 @@ class ActionModel():
         self.n_agents = args.n_agents
         self.device = "cuda" if args.use_cuda else "cpu"
         self.t = 0
+
+        # Unpack arguments from sacred
+        if isinstance(args, dict):
+            args = convert(args)
+        self.args = args
 
         # Buffers for store learning episodes (because the default buffer is not fit)
         model_scheme = {
@@ -35,13 +41,13 @@ class ActionModel():
 
 
     """ Update the state based on an action """
-    def step(self, agent_id, action, obs, avail_actions):
-        self.state, reward, terminated = self._apply_action_on_state(self.state, action)
+    def step(self, agent_id, actions, obs, avail_actions):
+        reward, terminated = self._apply_action_on_state(agent_id, actions[0, agent_id])
         
         transition_data = {
             "obs": obs,
             "avail_actions": avail_actions,
-            "actions": action * self._one_hot((1, self.n_agents), (agent_id,)),
+            "actions": actions[agent_id] * self._one_hot((1, self.n_agents), (agent_id,)),
             "reward": reward,
             "terminated": terminated
         }
@@ -60,7 +66,7 @@ class ActionModel():
         raise NotImplementedError
 
     """ Simulate the result of action in the environment """
-    def _apply_action_on_state(self, state, action, result=0):
+    def _apply_action_on_state(self, agent_id, action, result=0):
         raise NotImplementedError
 
     """ This function build a dynamic CG using pre-defined (problem specific) model """

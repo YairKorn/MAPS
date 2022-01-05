@@ -12,7 +12,7 @@ class PSeqMAC(BasicMAC):
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
 
-        # TODO: initialize agents using args - DQN / DDQN / RNN etc.
+        # TODO initialize agents using args - DQN / DDQN / RNN etc.
         # ! CUDA - how to move calcs to GPU
         # ! parameters, save & load models - check if need to be changed
 
@@ -21,16 +21,14 @@ class PSeqMAC(BasicMAC):
         # Update state of the action model based on the results
         # return a list of "augmanted agents" - agents that in interaction and need to select a joint action
         interaction_cg = self.action_model.update_state(ep_batch["state"][:, t_ep])
+        if self.random_ordering:
+            interaction_cg = np.random.permutation(interaction_cg)
 
         # if self.args.obs_last_action:
         #     self.step_inputs.append(th.zeros_like(ep_batch["actions_onehot"][:, t_ep]) if t_ep == 0 else ep_batch["actions_onehot"][:, t_ep-1])
 
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents))
-
-        # choose execution sequence
-        if self.random_ordering:
-            interaction_cg = np.random.permutation(interaction_cg)
         
         # PSeq core - runs the agents sequentially based on the chosen order
         for i in interaction_cg:
@@ -45,27 +43,15 @@ class PSeqMAC(BasicMAC):
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
-            self.action_model.step(i, chosen_actions)
+            self.action_model.step(i, chosen_actions, obs, avail_actions)
 
         return chosen_actions
 
-    # get the observation from action model and calculate based on this observation
+    #  calculate q-values based on observation
     def select_agent_action(self, obs, i):
-
-        agent_inputs, obs_probs = self._build_inputs(i)
         agent_outs, self.hidden_states = self.agent(obs, self.hidden_states)
-        
-        # augment q-values/probabiliteis over possible states
-        agent_outs = th.sum(obs_probs * agent_outs, dim=0)
-        #### TODO build the agent-core network (DDQN)
-
-        return agent_outs.view(ep_batch.batch_size, len(i) if type(i)==list else 1, -1)
+        return agent_outs.view(1, 1, -1)
    
     def init_hidden(self, batch_size):
-        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
-
-    # override BasicMAC _build_inputs, and get observation from action model #! after building obs, may need to change to observation.shape[1]
-    def _build_inputs(self, i):
-        observation, obs_prob = th.rand((self.n_agents, 400), device=th.device('cuda')), th.rand((self.n_agents, 1), device=th.device('cuda')) #! self.action_model.get_obs_agent(i)
-        inputs = [observation] + [x[:, i].repeat((observation.shape[0], 1)) for x in self.step_inputs]
-        return th.cat([x.reshape(observation.shape[0], -1) for x in inputs], dim=1), obs_prob
+        # self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
+        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)  # TODO check

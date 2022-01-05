@@ -6,7 +6,11 @@ from copy import deepcopy
 from sacred import Experiment, SETTINGS
 from sacred.observers import FileStorageObserver
 from sacred.utils import apply_backspaces_and_linefeeds
+
+# debug of torch
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 import torch as th
+
 import sys
 from utils.logging import get_logger
 import yaml

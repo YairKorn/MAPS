@@ -53,7 +53,7 @@ class ActionModel():
         transition_data = {
             "obs": obs,
             "avail_actions": avail_actions,
-            # "actions": actions[agent_id] * self._one_hot((1, self.n_agents), (agent_id,)),
+            "actions": [(actions[0, agent_id],)],
             "reward": [(reward,)],
             "terminated": [(terminated,)]
         }

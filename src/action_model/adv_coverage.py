@@ -1,6 +1,8 @@
+import os, yaml
 import numpy as np
 import torch as th
 from .model_v1 import ActionModel
+MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
 class AdvCoverage(ActionModel):
     def __init__(self, scheme, args) -> None:
@@ -8,7 +10,11 @@ class AdvCoverage(ActionModel):
         
         # Basics of action model
         self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
-        self.height, self.width = args.env_args['world_shape']
+
+        #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
+        env_map = os.path.join(MAP_PATH, (args.env_args['map'] if args.env_args['map'] is not None else 'default') + '.yaml')
+        with open(env_map, "r") as stream:
+            self.height, self.width = yaml.safe_load(stream)['world_shape']
 
         # Observation properties
         self.watch_covered = getattr(args, "watch_covered", True)
@@ -88,6 +94,6 @@ class AdvCoverage(ActionModel):
         terminated = (th.sum(self.state[:, :, 1]) == self.height * self.width) or (self.t == self.episode_limit - 1)
 
         # calculate reward
-        reward = self.time_reward + self.new_cell_reward * new_cell
+        reward = self.time_reward + self.new_cell_reward * new_cell / self.n_agents
 
         return reward, terminated

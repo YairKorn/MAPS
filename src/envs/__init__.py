@@ -18,6 +18,3 @@ REGISTRY["stag_hunt"] = partial(env_fn, env=StagHunt)
 
 from .coverage import AdversarialCoverage
 REGISTRY["mrac"] = partial(env_fn, env=AdversarialCoverage)
-
-from .coverage import AdversarialCoverage
-REGISTRY["mrac_e1"] = partial(env_fn, env=AdversarialCoverage)

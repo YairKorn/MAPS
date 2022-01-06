@@ -16,11 +16,12 @@ NOTES:
 
 TODO run env using PyMARL and make sure it runs
 """
+import os, yaml
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
 from collections import deque as queue
 import numpy as np
-
+MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
 class AdversarialCoverage(MultiAgentEnv):
 
@@ -30,6 +31,15 @@ class AdversarialCoverage(MultiAgentEnv):
     def __init__(self, **kwargs):
         # Unpack arguments from sacred
         args = kwargs
+        
+        # Unpack environment configuration from map file
+        env_map = os.path.join(MAP_PATH, (args['map'] if args['map'] is not None else 'default') + '.yaml')
+        with open(env_map, "r") as stream:
+            # map_args = 
+            for k, v in yaml.safe_load(stream).items():
+                args[k] = v
+        
+        # convert to GenericDictionary
         if isinstance(args, dict):
             args = convert(args)
         self.args = args

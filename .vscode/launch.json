@@ -9,8 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false
+            "console": "integratedTerminal"
         },
         {
             "name": "PyMARL_PSeq",
@@ -20,9 +19,10 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=pseq",
-                "--env-config=multi_coverage_e1",
+                "--env-config=multi_coverage",
                 "-d"
-            ]        
+            ],
+            "justMyCode": true
         },
         {
             "name": "PyMARL_DCG",

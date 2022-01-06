@@ -59,7 +59,7 @@ class PSeqMAC(BasicMAC):
 
     def forward(self, ep_batch, t, test_mode=False):
         #!!! I need to correct this!!!
-        agent_inputs = ep_batch["obs"][:, t]
+        agent_inputs = ep_batch["obs"][:, t].view(ep_batch.batch_size, -1)
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
-        return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
+        return agent_outs.view(ep_batch.batch_size, 1, -1)

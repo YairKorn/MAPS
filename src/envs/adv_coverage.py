@@ -35,8 +35,9 @@ class AdversarialCoverage(MultiAgentEnv):
         # Unpack environment configuration from map file
         env_map = os.path.join(MAP_PATH, (args['map'] if args['map'] is not None else 'default') + '.yaml')
         with open(env_map, "r") as stream:
-            # map_args = 
-            for k, v in yaml.safe_load(stream).items():
+            map_config = yaml.safe_load(stream)
+            print(map_config)
+            for k, v in map_config.items():
                 args[k] = v
         
         # convert to GenericDictionary

@@ -12,15 +12,14 @@ class PSeqMAC(BasicMAC):
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
 
-        # TODO initialize agents using args - DQN / DDQN / RNN etc.
         # ! CUDA - how to move calcs to GPU
         # ! parameters, save & load models - check if need to be changed
 
-    ### This function overrides MAC's original function because PSeq selects actions sequentially and select_actions selects actions cocurrently ###
+    ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         # return a list of "augmanted agents" - agents that in interaction and need to select a joint action
-        interaction_cg = self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep)
+        interaction_cg = self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
         if self.random_ordering:
             interaction_cg = np.random.permutation(interaction_cg)
 
@@ -39,7 +38,7 @@ class PSeqMAC(BasicMAC):
             avail_actions = self.action_model.get_avail_actions(i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
 
             # calculate action based on pseudo-state
-            values = self.select_agent_action(obs, i)
+            values = self.select_agent_action(self._build_inputs(obs, self.action_model.batch, self.action_model.t), i)
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -47,19 +46,27 @@ class PSeqMAC(BasicMAC):
 
         return chosen_actions
 
+    def _build_inputs(self, obs, batch, t):
+        bs = batch.batch_size
+        inputs = [obs]
+
+        if self.args.obs_last_action:
+            last_action = th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else \
+                batch["actions_onehot"][:, t-1]
+            inputs.append(last_action)
+        return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1)
+
     #  calculate q-values based on observation
     def select_agent_action(self, obs, i):
         agent_outs, self.hidden_states = self.agent(obs, self.hidden_states)
         return agent_outs.view(1, 1, -1)
    
     def init_hidden(self, batch_size):
-        # self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
-        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)  # TODO check
-
+        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)
 
     def forward(self, ep_batch, t, test_mode=False):
         #!!! I need to correct this!!!
-        agent_inputs = ep_batch["obs"][:, t].view(ep_batch.batch_size, -1)
+        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], self.action_model.buffer, t).view(ep_batch.batch_size, -1)
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
         return agent_outs.view(ep_batch.batch_size, 1, -1)

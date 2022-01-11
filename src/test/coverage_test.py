@@ -1,6 +1,6 @@
 import yaml, pytest, os
 import numpy as np
-from envs.coverage import AdversarialCoverage
+from src.envs.adv_coverage import AdversarialCoverage
 
 # TODO: Further test: 
 # - reward function

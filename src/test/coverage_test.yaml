@@ -23,7 +23,6 @@ env_args:
     observation_range: -1   # radius of observation, -1 means full observability
     observe_ids: True       # observation includes agents' ids
     observe_state: True     # whether an observation is only partial (False) or central including agent position (True)
-    abs_location: True      # add one-hot layer to the observation with agent's self-location
     watch_covered: True     # observe which cells was covered and which wasn't
     watch_surface: True     # observe where obstacles and threat are located
 

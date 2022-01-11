@@ -19,7 +19,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=pseq",
-                "--env-config=multi_coverage",
+                "--env-config=adv_coverage",
                 "-d"
             ],
             "justMyCode": true
@@ -32,7 +32,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=dcg",
-                "--env-config=multi_coverage",
+                "--env-config=adv_coverage",
                 "-d"
             ]
         }

@@ -12,37 +12,32 @@ class AdvCoverage(ActionModel):
         self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
 
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
-        env_map = os.path.join(MAP_PATH, (args.env_args['map'] if args.env_args['map'] is not None else 'default') + '.yaml')
+        env_map = os.path.join(MAP_PATH, (self.args.map if self.args.map is not None else 'default') + '.yaml')
         with open(env_map, "r") as stream:
             self.height, self.width = yaml.safe_load(stream)['world_shape']
 
         # Observation properties
-        self.watch_covered = getattr(args, "watch_covered", True)
-        self.watch_surface = getattr(args, "watch_surface", True)
-        self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
+        self.watch_covered = getattr(self.args, "watch_covered", True)
+        self.watch_surface = getattr(self.args, "watch_surface", True)
+        self.observation_range = getattr(self.args, "observation_range", -1) # -1 = full observability
 
         # Reward function
-        self.time_reward      = getattr(args, "reward_time", -0.1)
-        self.collision_reward = getattr(args, "reward_collision", 0.0)
-        self.new_cell_reward  = getattr(args, "reward_cell", 1.0)
-        self.succes_reward    = getattr(args, "reward_succes", 0.0)
-        self.invalid_reward   = getattr(args, "reward_invalid", 0.0)
-        self.threat_reward    = getattr(args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
+        self.time_reward      = getattr(self.args, "reward_time", -0.1)
+        self.collision_reward = getattr(self.args, "reward_collision", 0.0)
+        self.new_cell_reward  = getattr(self.args, "reward_cell", 1.0)
+        self.succes_reward    = getattr(self.args, "reward_succes", 0.0)
+        self.invalid_reward   = getattr(self.args, "reward_invalid", 0.0)
+        self.threat_reward    = getattr(self.args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
 
     """ When new perception is percepted, update the real state """
-    def update_state(self, state, t_ep):
-        if t_ep == 0:  # when the env time resets, a new episode has begun
-            self.b_episode = (self.b_episode + 1) % self.buffer_size
-            self.t = 0
+    def _update_env_state(self, state):
         self.state = state.reshape(self.height, self.width, -1)
         
         # extract agents' locations from the state
         self.agents = th.stack(th.where(self.state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = (self.state[self.agents[:, 0], self.agents[:, 1], 0].long() - 1).argsort()
         self.agents = self.agents[identities]
-
-        return self._detect_interaction()
     
     """ Use the general state to create an observation for the agents """
     def get_obs_agent(self, agent_id):
@@ -94,6 +89,24 @@ class AdvCoverage(ActionModel):
         terminated = (th.sum(self.state[:, :, 1]) == self.height * self.width) or (self.t == self.episode_limit - 1)
 
         # calculate reward
-        reward = self.time_reward + self.new_cell_reward * new_cell / self.n_agents
+        reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell
 
         return reward, terminated
+    
+    # For debug purpose
+    def plot_transition(self, t, bs=0):
+        # print selected action
+        action = self.buffer["actions"][bs, t, 0, 0]
+        avail_actions = th.where(self.buffer["avail_actions"][bs, t, 0, :])[0].cpu().tolist()
+        reward = self.buffer["reward"][bs, t, 0].item()
+        print(f'Action: {action}\t Available Actions: {avail_actions}\t Reward: {reward}')
+        
+        state = self.buffer["obs"][bs, t, 0, :].reshape(self.height, self.width, -1)
+        state = (state[:, :, 1] * (1 - 2*state[:, :, 0])).cpu().tolist()
+
+        new_state = self.buffer["obs"][bs, t+1, 0, :].reshape(self.height, self.width, -1)
+        new_state = (new_state[:, :, 1] * (1 - 2*new_state[:, :, 0])).cpu().tolist()
+
+        for i in range(len(state)):
+            print(str(state[i]) + '\t' + str(new_state[i]))
+        # Print state and new state; The actor is marked by minus sign

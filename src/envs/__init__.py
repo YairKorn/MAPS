@@ -16,5 +16,5 @@ if sys.platform == "linux":
 from .stag_hunt import StagHunt
 REGISTRY["stag_hunt"] = partial(env_fn, env=StagHunt)
 
-from .coverage import AdversarialCoverage
+from .adv_coverage import AdversarialCoverage
 REGISTRY["mrac"] = partial(env_fn, env=AdversarialCoverage)

@@ -18,8 +18,8 @@ buffer_cpu_only: True # If true we won't keep all of the replay buffer in vram
 
 # --- Logging options ---
 use_tensorboard: False # Log results to tensorboard
-save_model: False # Save the models to disk
-save_model_interval: 2000000 # Save models after this many timesteps
+save_model: True # Save the models to disk
+save_model_interval: 50000 # Save models after this many timesteps
 checkpoint_path: "" # Load a checkpoint from this path
 evaluate: False # Evaluate model for test_nepisode episodes and quit (no training)
 load_step: 0 # Load model trained on this many timesteps (0 if choose max possible)
@@ -39,8 +39,8 @@ grad_norm_clip: 10 # Reduce magnitude of gradients above this L2 norm
 # --- Agent parameters ---
 agent: "rnn" # Default rnn agent
 rnn_hidden_dim: 128 # Size of hidden state for default rnn agent
-obs_agent_id: false # Include the agent's one_hot id in the observation
-obs_last_action: false # Include the agent's last action (one_hot) in the observation
+obs_agent_id: False # Include the agent's one_hot id in the observation
+obs_last_action: True # Include the agent's last action (one_hot) in the observation
 
 # --- Experiment running params ---
 repeat_id: 1

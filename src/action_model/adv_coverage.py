@@ -10,6 +10,7 @@ class AdvCoverage(ActionModel):
         
         # Basics of action model
         self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
+        self.state_repr = {0.0: ' ', 9.0: 'X', 1.0: '*', -1.0: '$', 2.0: '#'}
 
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
         env_map = os.path.join(MAP_PATH, (self.args.map if self.args.map is not None else 'default') + '.yaml')
@@ -33,7 +34,7 @@ class AdvCoverage(ActionModel):
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         self.state = state.reshape(self.height, self.width, -1)
-        
+
         # extract agents' locations from the state
         self.agents = th.stack(th.where(self.state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = (self.state[self.agents[:, 0], self.agents[:, 1], 0].long() - 1).argsort()
@@ -102,11 +103,13 @@ class AdvCoverage(ActionModel):
         print(f'Action: {action}\t Available Actions: {avail_actions}\t Reward: {reward}')
         
         state = self.buffer["obs"][bs, t, 0, :].reshape(self.height, self.width, -1)
-        state = (state[:, :, 1] * (1 - 2*state[:, :, 0])).cpu().tolist()
+        state = (state[:, :, 1] * (1 - 3*state[:, :, 0]) + state[:, :, 2] - 8*state[:, :, 3]).cpu().tolist()
+        state = [[self.state_repr[e] for e in row] for row in state]
 
         new_state = self.buffer["obs"][bs, t+1, 0, :].reshape(self.height, self.width, -1)
-        new_state = (new_state[:, :, 1] * (1 - 2*new_state[:, :, 0])).cpu().tolist()
+        new_state = (new_state[:, :, 1] * (1 - 3*new_state[:, :, 0]) + new_state[:, :, 2] - 8*new_state[:, :, 3]).cpu().tolist()
+        new_state = [[self.state_repr[e] for e in row] for row in new_state]
 
         for i in range(len(state)):
-            print(str(state[i]) + '\t' + str(new_state[i]))
+            print(str(state[i]).replace("'","") + '\t' + str(new_state[i]).replace("'",""))
         # Print state and new state; The actor is marked by minus sign

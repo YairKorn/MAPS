@@ -7,7 +7,7 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "Cov_7x7_4Boxes"     # A specified setup of the environment
+    map: "Cov_11x11_9Rooms_2A"     # A specified setup of the environment
 
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
@@ -35,7 +35,7 @@ env_args:
     reward_time: -1.0       # negative reward for every timestep
 
 
-    episode_limit: 100      # maximum number of time steps per episode
+    episode_limit: 125      # maximum number of time steps per episode
 
 t_max: 500000              # number of time steps of the experiment
 

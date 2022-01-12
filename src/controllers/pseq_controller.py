@@ -13,7 +13,6 @@ class PSeqMAC(BasicMAC):
         self.action_model = model_REGISTRY[args.env](scheme, args)
 
         # ! CUDA - how to move calcs to GPU
-        # ! parameters, save & load models - check if need to be changed
 
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
@@ -23,8 +22,9 @@ class PSeqMAC(BasicMAC):
         if self.random_ordering:
             interaction_cg = np.random.permutation(interaction_cg)
 
-        # if self.args.obs_last_action:
-        #     self.step_inputs.append(th.zeros_like(ep_batch["actions_onehot"][:, t_ep]) if t_ep == 0 else ep_batch["actions_onehot"][:, t_ep-1])
+        #$ DEBUG: Reset logger - record all q-values during an episode
+        if self.action_model.t == 0:
+            self.logger = th.zeros((0, self.n_actions)).detach()
 
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
@@ -44,6 +44,9 @@ class PSeqMAC(BasicMAC):
             # simulate action in the environment
             self.action_model.step(i, chosen_actions, obs, avail_actions)
 
+            #$ DEBUG: Log q-values in the logger
+            self.logger = th.cat((self.logger, th.squeeze(values, axis=1)), axis=0)
+
         return chosen_actions
 
     def _build_inputs(self, obs, batch, t):
@@ -51,10 +54,9 @@ class PSeqMAC(BasicMAC):
         inputs = [obs]
 
         if self.args.obs_last_action:
-            last_action = th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else \
-                batch["actions_onehot"][:, t-1]
+            last_action = th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]
             inputs.append(last_action)
-        return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1)
+        return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1) #! bs?????
 
     #  calculate q-values based on observation
     def select_agent_action(self, obs, i):
@@ -70,3 +72,15 @@ class PSeqMAC(BasicMAC):
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
         return agent_outs.view(ep_batch.batch_size, 1, -1)
+
+    #$ DEBUG: Plot the q-values of a transition
+    # prev flag - debug the previous, completed episodes, hence take data from previous episode
+    def plot_transition(self, t, prev=True):
+        values = self.logger[t, :]
+        print(f'Q-values: {values.data}\t Best action: {th.argmax(values)}')
+        self.action_model.plot_transition(t, bs=self.action_model.buffer.buffer_index-prev)
+
+    #$ DEBUG: Find the number of episode in previous run
+    def last_transition(self):
+        bs=self.action_model.buffer.buffer_index-1
+        return th.sum(self.action_model.buffer['filled'][bs, :, 0])

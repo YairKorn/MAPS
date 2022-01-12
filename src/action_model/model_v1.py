@@ -11,7 +11,6 @@ class ActionModel():
         self.buffer_size = args.buffer_size
         self.device = "cuda" if (args.use_cuda and not args.internal_buffer_cpu) else "cpu"
         self.test_mode = False
-        self.b_episode = -1 # number of episode
         self.t = 0          # time in the episode
         self.terminated = False
 
@@ -48,7 +47,6 @@ class ActionModel():
         if t_ep == 0:  # when the env time resets, a new episode has begun
             self.batch = self.new_batch()
             self.test_mode = test_mode                                                  # does episode is for test or training
-            self.b_episode = (self.b_episode + (not test_mode)) % self.buffer_size      # counter of episodes (count only training episodes)
             self.t = 0                                                                  # reset internal time
             self.terminated = False
 
@@ -76,9 +74,9 @@ class ActionModel():
             self.t += 1
 
             if terminated:# and not (self.t % self.n_agents):
-                self.buffer.update({
+                self.batch.update({
                     "obs": self.get_obs_agent(np.random.choice(self.n_agents))
-                }, bs=self.b_episode, ts=self.t)
+                }, ts=self.t)
                 self.buffer.insert_episode_batch(self.batch)
             
 
@@ -101,6 +99,9 @@ class ActionModel():
     """ This function build a dynamic CG using pre-defined (problem specific) model """
     def _detect_interaction(self):
         return np.arange(self.n_agents) # by default, no interaction
+
+    def plot_transition(self, t, bs=0):
+        raise NotImplementedError
 
     @staticmethod
     def _one_hot(shape, one_hot):

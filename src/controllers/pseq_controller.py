@@ -1,5 +1,6 @@
 import numpy as np
 import torch as th
+from tabulate import tabulate
 from .basic_controller import BasicMAC
 from action_model import REGISTRY as model_REGISTRY
 
@@ -11,7 +12,6 @@ class PSeqMAC(BasicMAC):
         # PSeq properties & action model initalization
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
-
         # ! CUDA - how to move calcs to GPU
 
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
@@ -25,10 +25,9 @@ class PSeqMAC(BasicMAC):
         #$ DEBUG: Reset logger - record all q-values during an episode
         if self.action_model.t == 0:
             self.logger = th.zeros((0, self.n_actions)).detach()
-
+            
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
-        
         # PSeq core - runs the agents sequentially based on the chosen order
         for i in interaction_cg:
             # get (pseudo-)observation batch from action model
@@ -73,12 +72,27 @@ class PSeqMAC(BasicMAC):
 
         return agent_outs.view(ep_batch.batch_size, 1, -1)
 
+    #$ DEBUG: Plot the sequence of q-values for the whole episode
+    def values_seq(self):
+        bs = self.action_model.buffer.buffer_index-1
+        values_data =[]
+        headers = ['Time', 'Agent', 'Q-Values', 'Max Q-value', 'Avail Actions', 'Action', 'Reward']
+
+        for t in range(min(self.logger.shape[0], self.action_model.buffer['reward'].shape[1])):
+            values = self.logger[t, :]
+            reward = self.action_model.buffer['reward'][bs, t, 0]
+            action = self.action_model.buffer["actions"][bs, t, 0, 0]
+            avail_actions = th.where(self.action_model.buffer["avail_actions"][bs, t, 0, :])[0].cpu().tolist()
+            if len(avail_actions) > 0:
+                values_data.append([t, t%self.n_agents, values.data, th.max(values[avail_actions]), avail_actions, action, reward])
+        print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))
+
     #$ DEBUG: Plot the q-values of a transition
     # prev flag - debug the previous, completed episodes, hence take data from previous episode
-    def plot_transition(self, t, prev=True):
+    def plot_transition(self, t):
         values = self.logger[t, :]
         print(f'Q-values: {values.data}\t Best action: {th.argmax(values)}')
-        self.action_model.plot_transition(t, bs=self.action_model.buffer.buffer_index-prev)
+        self.action_model.plot_transition(t, bs=self.action_model.buffer.buffer_index-1)
 
     #$ DEBUG: Find the number of episode in previous run
     def last_transition(self):

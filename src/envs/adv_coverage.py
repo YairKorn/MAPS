@@ -13,9 +13,8 @@ NOTES:
 * The environment does not include the extension for heterogeneous robots
 * Environment is not compatable for batch mode for now (lean code without extra features)
 ? enable random placement of agents only once?
-
-TODO run env using PyMARL and make sure it runs
 """
+
 import os, yaml
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
@@ -236,7 +235,9 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Observation-mode 2 - return a (2*range + 1)x(2*range + 1) slice from the grid
         else:
-            pass #! complete to partial-observability with absolute location -> mask the invisiblee parts of the state
+            d = 2*self.observation_range + 1
+            observation = np.dstack((np.zeros((d, d)), np.ones((d, d)), -1*np.ones((d, d))))
+            pass #! complete to partial-observability with absolute location -> mask the invisible parts of the state
 
         # Remove agents' id from observation if defined
         if not self.observe_ids: 

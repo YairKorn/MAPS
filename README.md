@@ -6,6 +6,8 @@ In case of import errors, add the next command to ~/.bashsrc:
 export PYTHONPATH="${PYTHONPATH}:./src"
 ```
 
+After finished, delete all occurences of #$
+
 
 ## Installation instructions
 Installation instruction from DCG repository

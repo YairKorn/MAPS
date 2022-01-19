@@ -8,7 +8,7 @@ epsilon_finish: 0.05          # Final epsilon for exploration
 epsilon_anneal_time: 150000    # Number of time steps until exploration has finished
 
 # specify learner, controller and agent
-agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value # TODO select architecture
+agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
 internal_buffer_cpu: false     # Internal buffer use CPU-only. If CUDA enabled, copy the buffer to GPU before learning
 double_q: True                # DDQN
@@ -17,6 +17,8 @@ mac: "pseq"                   # The multi-agent controller for PSeq
 mixer:                        # No mixing network for PSeq
 # mixing_embed_dim: 32          # Hidden dimensions of the state dependent bias function of DCG-V
 target_update_interval: 200   # Update the target network every {} episodes
+TDn_bound: 
+TDn_weight: 0.3
 
 # PSeq-specific configuration
 random_ordering: False

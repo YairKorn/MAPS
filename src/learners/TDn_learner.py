@@ -1,39 +1,18 @@
-import copy
-from components.episode_buffer import EpisodeBatch
-from modules.mixers.vdn import VDNMixer
-from modules.mixers.qmix import QMixer
 import torch as th
-from torch.optim import RMSprop
+from .q_learner import QLearner
+from components.episode_buffer import EpisodeBatch
 
-
-class QLearner:
+""" TDn Learner implements offline TD-lambda bounded by n-steps due to performances issues """
+class TDnLearner(QLearner):
     def __init__(self, mac, scheme, logger, args):
-        self.args = args
-        self.mac = mac
-        self.logger = logger
+        super().__init__(mac, scheme, logger, args)
+ 
+        # TD-n properties
+        self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else 1 # TD-n default n=1 (Q-learning)
+        self.TDn_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.TDn_bound-1)), \
+            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).view(-1, 1, 1, 1)
 
-        self.params = list(mac.parameters())
-
-        self.last_target_update_episode = 0
-
-        self.mixer = None
-        if args.mixer is not None:
-            if args.mixer == "vdn":
-                self.mixer = VDNMixer()
-            elif args.mixer == "qmix":
-                self.mixer = QMixer(args)
-            else:
-                raise ValueError("Mixer {} not recognised.".format(args.mixer))
-            self.params += list(self.mixer.parameters())
-            self.target_mixer = copy.deepcopy(self.mixer)
-
-        self.optimiser = RMSprop(params=self.params, lr=args.lr, alpha=args.optim_alpha, eps=args.optim_eps)
-
-        # a little wasteful to deepcopy (e.g. duplicates action selector), but should work for any MAC
-        self.target_mac = copy.deepcopy(mac)
-
-        self.log_stats_t = -self.args.learner_log_interval - 1
-
+    """ An offline n-bound TD-lambda learner """
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
         # Get the relevant quantities
         rewards = batch["reward"][:, :-1]
@@ -77,13 +56,27 @@ class QLearner:
         else:
             target_max_qvals = target_mac_out.max(dim=3)[0]
 
-        # Mix
-        if self.mixer is not None:
-            chosen_action_qvals = self.mixer(chosen_action_qvals, batch["state"][:, :-1])
-            target_max_qvals = self.target_mixer(target_max_qvals, batch["state"][:, 1:])
+        targets = []
+        ### Calculate TD-n, for 1...TDn_bound ##
+        for n in range(1, self.TDn_bound+1):
+            reward_conv = th.nn.Conv1d(1, 1, n, bias=False, device=rewards.device)
+            reward_conv.weight.data = self.args.gamma ** th.arange(n).view(1, 1, -1) # th.ones((1, 1, n))
+            rewards_n = reward_conv(th.cat((rewards.reshape(batch.batch_size, 1, -1), th.zeros(batch.batch_size, 1, n-1)), axis=2))
+            rewards_n = rewards_n.reshape(batch.batch_size, -1, 1)
 
-        # Calculate 1-step Q-Learning targets
-        targets = rewards + self.args.gamma * (1 - terminated) * target_max_qvals
+            target_max_qvals_n = th.cat((target_max_qvals[:, n-1:], th.zeros((batch.batch_size, n-1, 1))), axis=1)
+
+            # Mask "terminated"
+            term_n = terminated.clone()
+            mask_ind = th.where(term_n)[1]
+            for ind in range(batch.batch_size):
+                term_n[ind, max(mask_ind[ind]-n+1, 0):mask_ind[ind], 0] = 1
+
+            # Calculate n-step Q-Learning targets
+            targets.append(rewards_n + (self.args.gamma ** n) * (1 - term_n) * target_max_qvals_n)
+
+        targets = th.stack(targets, dim=0)
+        targets = (self.TDn_weight * targets).sum(dim=0)  # Concat across TD-ns, and multiply by the weights
 
         # Td-error
         td_error = (chosen_action_qvals - targets.detach())
@@ -95,7 +88,7 @@ class QLearner:
 
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
-        print(f'original loss={loss}')
+
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()
@@ -114,30 +107,3 @@ class QLearner:
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
-
-    def _update_targets(self):
-        self.target_mac.load_state(self.mac)
-        if self.mixer is not None:
-            self.target_mixer.load_state_dict(self.mixer.state_dict())
-        self.logger.console_logger.info("Updated target network")
-
-    def cuda(self):
-        self.mac.cuda()
-        self.target_mac.cuda()
-        if self.mixer is not None:
-            self.mixer.cuda()
-            self.target_mixer.cuda()
-
-    def save_models(self, path):
-        self.mac.save_models(path)
-        if self.mixer is not None:
-            th.save(self.mixer.state_dict(), "{}/mixer.th".format(path))
-        th.save(self.optimiser.state_dict(), "{}/opt.th".format(path))
-
-    def load_models(self, path):
-        self.mac.load_models(path)
-        # Not quite right but I don't want to save target networks
-        self.target_mac.load_models(path)
-        if self.mixer is not None:
-            self.mixer.load_state_dict(th.load("{}/mixer.th".format(path), map_location=lambda storage, loc: storage))
-        self.optimiser.load_state_dict(th.load("{}/opt.th".format(path), map_location=lambda storage, loc: storage))

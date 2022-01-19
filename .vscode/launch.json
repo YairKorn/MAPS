@@ -20,6 +20,9 @@
             "args": [
                 "--config=pseq",
                 "--env-config=adv_coverage",
+                "with",
+                "env_args.observe_ids=True",
+                "obs_agent_id=False",
                 "-d"
             ],
             "justMyCode": true
@@ -33,6 +36,9 @@
             "args": [
                 "--config=dcg",
                 "--env-config=adv_coverage",
+                "with",
+                "env_args.observe_ids=False",
+                "obs_agent_id=True",
                 "-d"
             ]
         }

@@ -59,9 +59,11 @@ class AdvCoverage(ActionModel):
         observation = self.state[:, :, watch].clone()
         agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
 
-        # Remove agents' id from observation - #* A robot in threatened cell is (1-p) alive
+        # Remove agents' id from observation - a robot in threatened cell is (1-p) alive
         observation[:, :, 0] = (observation[:, :, 0] != 0)
-        observation[self.agents[:, 0], self.agents[:, 1], 0] *= 1 - self.state[self.agents[:, 0], self.agents[:, 1], 2]
+
+        acted = th.tensor([agent_id in self.action_order for agent_id in range(self.n_agents)])
+        observation[self.agents[:, 0], self.agents[:, 1], 0] *= 1 - self.state[self.agents[:, 0], self.agents[:, 1], 2] * acted
         self.alive = (observation[:, :, 0] > 0).sum()
 
         # Add agent's location (one-hot)
@@ -73,6 +75,9 @@ class AdvCoverage(ActionModel):
 
     # Use avail_actions to detect obstacles; this function avoid collisions (case that another agent has moved to adjacent cell)
     def get_avail_actions(self, agent_id, avail_actions):
+        if not self.enable[agent_id]:
+            return avail_actions
+
         new_loc = self.agents[agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
         no_collision = (self.state[new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
             (self.state[new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))

@@ -8,7 +8,7 @@ class MCTSBuffer:
         self.max_size = max_size        
         self.device = device
 
-        # Create data structure
+        # Create data structure ###! NEED TO RESET BUFFER - CAN BE DONE USING FILLED FIELD
         self.data = SN()
         self.data = {
             "state": th.zeros((max_size, state_size), dtype=dtype, device=self.device),
@@ -18,7 +18,8 @@ class MCTSBuffer:
     
     # Sample from the possible results of an action, based on the action model, and return batch of states
     def action_sample(self, v_results):
-        results = th.tensordot(self.state_prob, v_results, dims=0).reshape(-1)
+        # Calculate probabilities of all possible outcomes; mask 
+        results = th.tensordot(self.data["probs"]*self.data["filled"], v_results, dims=0).reshape(-1)
 
         # If the batch is smaller than the maximal batch size, sample randomly (MC)
         sample = th.where(results > 0) if (results > 0).sum() > self.max_size else \
@@ -30,3 +31,8 @@ class MCTSBuffer:
     # Update states based corresponds to the probabilities calculated in the sampling
     def update(self, data):
         self.data["state"][:len(data), :] = th.stack(data, dim=1)
+        self.data["filled"][0, :len(data)] = 1
+    
+    # Reset buffer by set all spots to be empty
+    def reset(self):
+        self.data["filled"] = 0

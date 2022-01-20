@@ -7,8 +7,8 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "Threat_5x5_Sparse"     # A specified setup of the environment
-    # RECOMMENDED MAPS: Cov_11x11_9Boxes || Cov_4x4_Safe || Cov_11x11_9Rooms
+    map: "Threat_7x7_Hard"     # A specified setup of the environment
+    # RECOMMENDED MAPS: Threat_8x8_Hard || Threat_7x7_Hard || Cov_11x11_9Rooms
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 

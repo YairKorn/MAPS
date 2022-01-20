@@ -12,24 +12,35 @@ class PSeqMAC(BasicMAC):
         # PSeq properties & action model initalization
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
+        self.cliques = np.empty(0) # count number of single-steps in the previous iteration
         # ! CUDA - how to move calcs to GPU
+            
 
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
-        # return a list of "augmanted agents" - agents that in interaction and need to select a joint action
-        interaction_cg = self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
+        self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
+
+        # Preservation of hidden state in stochastic environment
+        if self.action_model.stochastic_env:
+            if t_ep == 0: # init hidden state
+                self.known_hidden_state = self.hidden_states.clone()
+            else: # calculate new hidden state based on the real outcomes
+                self._propagate_hidden(steps=len(self.cliques))   
+
+        # Detect interactions between agent, for selecting a joint action in these interactions
+        self.cliques = self.action_model.detect_interaction()
         if self.random_ordering:
-            interaction_cg = np.random.permutation(interaction_cg)
+            self.cliques = np.random.permutation(self.cliques)
 
         #$ DEBUG: Reset logger - record all q-values during an episode
-        if self.action_model.t == 0:
+        if t_ep == 0:
             self.logger = th.zeros((0, self.n_actions)).detach()
             
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
         # PSeq core - runs the agents sequentially based on the chosen order
-        for i in interaction_cg:
+        for i in self.cliques:
             # get (pseudo-)observation batch from action model
             obs = th.unsqueeze(self.action_model.get_obs_agent(i), dim=0)
             
@@ -65,12 +76,23 @@ class PSeqMAC(BasicMAC):
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)
 
+    # Used only for training, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
-        #!!! I need to correct this!!!
-        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], self.action_model.buffer, t).view(ep_batch.batch_size, -1)
+        # agent_inputs = self._build_inputs(ep_batch["obs"][:, t], self.action_model.buffer, t).view(ep_batch.batch_size, -1)
+        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
         return agent_outs.view(ep_batch.batch_size, 1, -1)
+
+    # Update the hidden state based on the real outcomes (rather than estimated outcomes as calculated during the sequential run)
+    def _propagate_hidden(self, steps):
+        self.hidden_states = self.known_hidden_state
+        for s in range(steps, 0, -1):
+            self.forward(self.action_model.batch, t=self.action_model.t-s)
+        self.known_hidden_state = self.hidden_states.clone()
+
+
+
 
     #$ DEBUG: Plot the sequence of q-values for the whole episode
     def values_seq(self):

@@ -75,7 +75,7 @@ class AdversarialCoverage(MultiAgentEnv):
                     self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
 
                 threats = np.asarray(getattr(args, "threat_location", []))
-                if threats:
+                if threats != []:
                     threats_location = np.asarray(threats[:, :2], dtype=np.int16)
                     self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
 

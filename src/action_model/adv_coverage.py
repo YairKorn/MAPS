@@ -2,20 +2,25 @@ import os, yaml
 import numpy as np
 import torch as th
 from .model_v1 import ActionModel
+from collections import defaultdict
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
 class AdvCoverage(ActionModel):
     def __init__(self, scheme, args) -> None:
         super().__init__(scheme, args)
-        
+
         # Basics of action model
         self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
-        self.state_repr = {0.0: ' ', 9.0: 'X', 1.0: '*', -1.0: '$', 2.0: '#'}
+        self.state_repr = defaultdict(lambda: ' ')
+        for k ,v in [(9.0, 'X'), (1.0, '*'), (-1.0, '$'), (2.0, '#')]:
+            self.state_repr[k] = v
+        # self.state_repr = {0.0: ' ', 9.0: 'X', 1.0: '*', -1.0: '$', 2.0: '#'}
 
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
         env_map = os.path.join(MAP_PATH, (self.args.map if self.args.map is not None else 'default') + '.yaml')
         with open(env_map, "r") as stream:
             self.height, self.width = yaml.safe_load(stream)['world_shape']
+            self.n_cells = self.height * self.width
 
         # Observation properties
         self.watch_covered = getattr(self.args, "watch_covered", True)
@@ -30,15 +35,20 @@ class AdvCoverage(ActionModel):
         self.invalid_reward   = getattr(self.args, "reward_invalid", 0.0)
         self.threat_reward    = getattr(self.args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
+        self.agents = th.zeros((self.n_agents, 2), dtype=th.long) # location vector
+        self.enable = self.n_agents * [True]
 
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         self.state = state.reshape(self.height, self.width, -1)
 
         # extract agents' locations from the state
-        self.agents = th.stack(th.where(self.state[:, :, 0] > 0)).transpose(0, 1).cpu()
-        identities = (self.state[self.agents[:, 0], self.agents[:, 1], 0].long() - 1).argsort()
-        self.agents = self.agents[identities]
+        temp_agents = th.stack(th.where(self.state[:, :, 0] > 0)).transpose(0, 1).cpu()
+        identities = self.state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
+        self.agents[identities] = temp_agents
+
+        # extract agents' status from state
+        self.enable = [agent_id in identities for agent_id in range(self.n_agents)]
     
     """ Use the general state to create an observation for the agents """
     def get_obs_agent(self, agent_id):
@@ -49,8 +59,10 @@ class AdvCoverage(ActionModel):
         observation = self.state[:, :, watch].clone()
         agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
 
-        # Remove agents' id from observation
+        # Remove agents' id from observation - #* A robot in threatened cell is (1-p) alive
         observation[:, :, 0] = (observation[:, :, 0] != 0)
+        observation[self.agents[:, 0], self.agents[:, 1], 0] *= 1 - self.state[self.agents[:, 0], self.agents[:, 1], 2]
+        self.alive = (observation[:, :, 0] > 0).sum()
 
         # Add agent's location (one-hot)
         one_hot = th.unsqueeze(th.zeros_like(observation[:, :, 0]), axis=2)
@@ -68,8 +80,11 @@ class AdvCoverage(ActionModel):
 
 
     """ Simulate the result of action in the environment """
-    # TODO - threats wasn't implemented (and some parts of the reward function)
     def _apply_action_on_state(self, agent_id, action, avail_actions, result=0):
+        if not self.enable[agent_id]: # if agents is disabled, do nothing
+            terminated = (self.t == self.episode_limit - 1) or (not sum(self.enable))
+            return self.time_reward / self.n_agents, terminated
+        
         agent_location = self.agents[agent_id, :]
         if not avail_actions.flatten()[action]:
             action = 4 # Do nothing (does not support invalid/collision reward)
@@ -78,23 +93,34 @@ class AdvCoverage(ActionModel):
         new_location = agent_location + self.action_effect[action]
         new_location %= th.tensor(self.state.shape[:2])
 
-        if self.state[new_location[0], new_location[1], 0] == 0 and self.state[new_location[0], new_location[1], 2] == 0:
+        if self.state[new_location[0], new_location[1], 0] == 0 and self.state[new_location[0], new_location[1], 2] >= 0:
             self.state[agent_location[0], agent_location[1], 0] = 0.0
             self.state[new_location[0], new_location[1], 0] = agent_id + 1.0
+            self.agents[agent_id, :] = new_location
 
         # mark new cell as covered
         new_cell = self.state[new_location[0], new_location[1], 1] == 0.0
         self.state[new_location[0], new_location[1], 1] = 1.0
 
         # check termination
-        terminated = (th.sum(self.state[:, :, 1]) == self.height * self.width) or (self.t == self.episode_limit - 1)
+        covered = th.sum(self.state[:, :, 1])
+        terminated = (covered == self.height * self.width) or (self.t == self.episode_limit - 1) or (not sum(self.enable))
 
         # calculate reward
-        reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell
+        reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell                 # Time & Cover
+        reward += self.state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
+            (self.time_reward if self.alive > 1 else -1) / self.alive                               # Threats
 
         return reward, terminated
     
-    # For debug purpose
+    def _back_update(self, obs, state, ind):
+        obs = obs.reshape(self.height, self.width, -1)
+        for agent_id in self.action_order[:ind]:
+            obs[self.agents[agent_id, 0], self.agents[agent_id, 1], 1] = self.enable[agent_id]
+
+        return obs.reshape(-1)
+
+    #$ DEBUG: plot a transition specified by time, including state, action, reward and new state
     def plot_transition(self, t, bs=0):
         # print selected action
         action = self.buffer["actions"][bs, t, 0, 0]
@@ -112,4 +138,3 @@ class AdvCoverage(ActionModel):
 
         for i in range(len(state)):
             print(str(state[i]).replace("'","") + '\t' + str(new_state[i]).replace("'",""))
-        # Print state and new state; The actor is marked by minus sign

@@ -1,0 +1,11 @@
+# A map for advarserial coverage environment
+
+agents_placement: [[0, 0], [0, 5]]    # if random_placement is False, location can be specified
+n_agents: 2
+obstacles_location: [
+    [0, 1], [1, 3], [1, 5], [2, 1], [3, 4], [4, 2], [5, 0], [5, 4], [5, 5]
+]  # specified location of obstacles in the grid
+threat_location: [[3, 5, 0.1], [2, 2, 0.4], [2, 3, 0.15], [3, 2, 0.7], [3, 3, 0.3]]     # specified location and severty of threats in the grid
+toroidal: False         # whether the world is bounded (False) or toroidal (True)
+world_shape: [6, 6]     # the shape of the grid-world [height, width]
+random_placement: False # location of agents is randomized every episode

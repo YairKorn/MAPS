@@ -10,7 +10,7 @@ After finished, delete all occurences of #$
 
 
 ## Installation instructions
-Installation instruction from DCG repository
+Installation instruction from PSeq repository
 
 Follow the first 2 steps from [PyMARL](https://github.com/oxwhirl/pymarl) :  
 1. Build the Dockerfile using     
@@ -31,56 +31,38 @@ cp -f maps/* ./3rdparty/StarCraftII/Maps/Melee
 ### Using an existing PyMARL copy
 Both algorithms and environments can be used with existing versions of  [PyMARL](https://github.com/oxwhirl/pymarl)  as well. 
 
-The __Dockerfile__ must install the [`torch_scatter`](https://github.com/rusty1s/pytorch_scatter) library, which can lead to conflicts with the installed `torch` version and the Ubuntu version of the base image. See `docker/Dockerfile`.
-
-The __environments__ can be imported by copying: 
+The __environments__ and the __maps__ can be imported by copying: 
 ```
-src/config/envs/rel_overgen.yaml
-src/config/envs/ghost_hunt.yaml
-src/envs/stag_hunt.py
+maps/coverage_maps/*
+src/config/envs/adv_coverage.yaml
+src/envs/adv_coverage.py
 ```
 and by appending `src/envs/__init__.py` with: 
 ```
-from .stag_hunt import StagHunt  
-REGISTRY["stag_hunt"] = partial(env_fn, env=StagHunt)
+from .adv_coverage import AdversarialCoverage
+REGISTRY["mrac"] = partial(env_fn, env=AdversarialCoverage)
 ```
 The __algorithms__ can be imported by copying:
 ```
-src/config/algs/cg.yaml
-src/config/algs/dcg.yaml
-src/config/algs/dcg_noshare.yaml
-src/config/algs/lrq.yaml
-src/controllers/cg_controller.py
-src/controllers/dcg_controller.py
-src/controllers/dcg_noshare_controller.py
-src/controllers/low_rank_controller.py
-src/learners/dcg_learner.py
-src/modules/agents/rnn_feature_agent.py
+src/action_model/*
+src/components/mcts_buffer.py
+src/config/algs/pseq.yaml
+src/controllers/pseq_controller.py
+src/learners/pseq_learner.py
+src/learners/TDn_learner.py
 ```
 by appending `src/controllers/__init__.py` with:
 ```
-from .dcg_controller import DeepCoordinationGraphMAC  
-REGISTRY["dcg_mac"] = DeepCoordinationGraphMAC  
-  
-from .dcg_noshare_controller import DCGnoshareMAC  
-REGISTRY["dcg_noshare_mac"] = DCGnoshareMAC  
-  
-from .cg_controller import SimpleCoordionationGraphMAC  
-REGISTRY["cg_mac"] = SimpleCoordionationGraphMAC  
-  
-from .low_rank_controller import LowRankMAC  
-REGISTRY["low_rank_q"] = LowRankMAC
+from .pseq_controller import PSeqMAC
+REGISTRY["pseq"] = PSeqMAC
 ```
 by appending `src/learners/__init__.py` with:
 ```
-from .dcg_learner import DCGLearner  
-REGISTRY["dcg_learner"] = DCGLearner
+from .pseq_learner import PSeqLearner
+REGISTRY["pseq_learner"] = PSeqLearner
 ```
-and finally by appending `src/modules/agents/__init__.py` with:
-```
-from .rnn_feature_agent import RNNFeatureAgent  
-REGISTRY["rnn_feat"] = RNNFeatureAgent
-```
+
+# To Be Continued...
 
 ## Replicate the experiments  
 As in the [PyMARL](https://github.com/oxwhirl/pymarl) framework, all experiments are run like this:  

@@ -42,13 +42,14 @@ class PSeqMAC(BasicMAC):
         # PSeq core - runs the agents sequentially based on the chosen order
         for i in self.cliques:
             # get (pseudo-)observation batch from action model
-            obs = th.unsqueeze(self.action_model.get_obs_agent(i), dim=0)
+            obs, probs = self.action_model.get_obs_agent(i)
             
             # calculate values of the current (pseudo-)state batch and select action
             avail_actions = self.action_model.get_avail_actions(i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
 
             # calculate action based on pseudo-state
             values = self.select_agent_action(self._build_inputs(obs, self.action_model.batch, self.action_model.t), i)
+            values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -64,14 +65,16 @@ class PSeqMAC(BasicMAC):
         inputs = [obs]
 
         if self.args.obs_last_action:
-            last_action = th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]
+            last_action = (th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]).expand(bs, obs.shape[0], -1)
             inputs.append(last_action)
         return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1) #! bs?????
 
     #  calculate q-values based on observation
     def select_agent_action(self, obs, i):
-        agent_outs, self.hidden_states = self.agent(obs, self.hidden_states)
-        return agent_outs.view(1, 1, -1)
+        agent_outs, self.hidden_states = self.agent(obs, self.hidden_states.expand(1, obs.shape[0], -1))
+        #! MCTS| Make sure that this is not harm the learning procces!
+        #! MCTS| Recalculate hidden state as weighted sum
+        return agent_outs.view(1, obs.shape[0], -1)
    
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)

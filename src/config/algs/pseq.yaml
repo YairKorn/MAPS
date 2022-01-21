@@ -20,5 +20,9 @@ target_update_interval: 200   # Update the target network every {} episodes
 TDn_bound: 
 TDn_weight: 0.3
 
+# Stoachstic Environment
+MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment (in determinstic env, set automatically to 1)
+MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"
+
 # PSeq-specific configuration
 random_ordering: False

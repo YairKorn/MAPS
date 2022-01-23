@@ -17,8 +17,8 @@ mac: "pseq"                   # The multi-agent controller for PSeq
 mixer:                        # No mixing network for PSeq
 # mixing_embed_dim: 32          # Hidden dimensions of the state dependent bias function of DCG-V
 target_update_interval: 200   # Update the target network every {} episodes
-TDn_bound: 
-TDn_weight: 0.3
+TDn_bound:                    # TD-lambda bound on n. null = n_agents+1
+TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
 # Stoachstic Environment
 MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment (in determinstic env, set automatically to 1)

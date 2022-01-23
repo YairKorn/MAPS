@@ -47,9 +47,12 @@ class PSeqMAC(BasicMAC):
             # calculate values of the current (pseudo-)state batch and select action
             avail_actions = self.action_model.get_avail_actions(i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
 
-            # calculate action based on pseudo-state
+            # Calculate action based on pseudo-state
             values = self.select_agent_action(self._build_inputs(obs, self.action_model.batch, self.action_model.t), i)
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
+            # Update pseudo-hidden state based on the possible states
+            self.hidden_states = (self.hidden_states * probs).sum(dim=0).reshape(1, -1) 
+
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -73,7 +76,6 @@ class PSeqMAC(BasicMAC):
     def select_agent_action(self, obs, i):
         agent_outs, self.hidden_states = self.agent(obs, self.hidden_states.expand(1, obs.shape[0], -1))
         #! MCTS| Make sure that this is not harm the learning procces!
-        #! MCTS| Recalculate hidden state as weighted sum
         return agent_outs.view(1, obs.shape[0], -1)
    
     def init_hidden(self, batch_size):

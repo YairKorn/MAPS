@@ -79,7 +79,7 @@ def make_parser():
     return parser
 
 # Run using command line:
-# python plot.py prefix (required) windows (optinal) --c cat1 cat2 etc.
+# python plot.py prefix (window) --c cat1 cat2 etc.
 # 
 if __name__ == "__main__":
     # Experiments on the same environment and plotted together

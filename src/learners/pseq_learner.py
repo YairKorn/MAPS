@@ -1,4 +1,5 @@
 import torch as th
+import numpy as np
 from .TDn_learner import TDnLearner
 from components.episode_buffer import EpisodeBatch
 
@@ -8,6 +9,7 @@ class PSeqLearner(TDnLearner):
         self.buffer = self.mac.action_model.buffer
         self.train_device = "cuda" if args.use_cuda else "cpu" #$ NOT USED FOR NOW
         self.device = self.buffer.device #$ NOT USED FOR NOW
+        self.args.gamma = np.power(self.args.gamma, 1/self.args.n_agents)
 
         # TD-n properties
         self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else args.n_agents+1 # TD-n default n_agents+1

@@ -53,19 +53,20 @@ class AdvCoverage(ActionModel):
         return state
     
     """ Use the general state to create an observation for the agents """
-    def get_obs_state(self, state, agent_id):
+    def get_obs_state(self, data, agent_id):
         # Filter the grid layers that available to the agent
         watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
+        state, agents = data["state"], data["agents"]
 
         # Observation-mode 1 - return the whole grid
         observation = state[:, :, watch].clone()
-        agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
+        agent_location = (agents[agent_id, 0], agents[agent_id, 1])
 
         # Remove agents' id from observation - a robot in threatened cell is (1-p) alive
         observation[:, :, 0] = (observation[:, :, 0] != 0)
 
         acted = th.tensor([agent_id in self.action_order for agent_id in range(self.n_agents)])
-        observation[self.agents[:, 0], self.agents[:, 1], 0] *= 1 - state[self.agents[:, 0], self.agents[:, 1], 2] * acted
+        observation[agents[:, 0], agents[:, 1], 0] *= 1 - state[agents[:, 0], agents[:, 1], 2] * acted
         self.alive = (observation[:, :, 0] > 0).sum()
 
         # Add agent's location (one-hot)
@@ -79,7 +80,7 @@ class AdvCoverage(ActionModel):
     def get_avail_actions(self, agent_id, avail_actions):
         if not self.enable[agent_id]:
             return avail_actions
-
+        #! MCTS| CHECK IT OUT
         new_loc = self.agents[agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
         no_collision = (self.state[new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
             (self.state[new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
@@ -87,12 +88,13 @@ class AdvCoverage(ActionModel):
 
 
     """ Simulate the result of action in the environment """
-    def _apply_action_on_state(self, state, agent_id, action, avail_actions, result=0):
+    def _apply_action_on_state(self, data, agent_id, action, avail_actions):
+        state, agents, result = data["state"], data["agents"], data["result"]
         if not self.enable[agent_id]: # if agents is disabled, do nothing
             terminated = (self.t == self.episode_limit - 1) or (not sum(self.enable))
             return self.time_reward / self.n_agents, terminated
         
-        agent_location = self.agents[agent_id, :]
+        agent_location = agents[agent_id, :]
         if not avail_actions.flatten()[action]:
             action = 4 # Do nothing (does not support invalid/collision reward)
 
@@ -102,8 +104,8 @@ class AdvCoverage(ActionModel):
 
         if state[new_location[0], new_location[1], 0] == 0 and state[new_location[0], new_location[1], 2] >= 0:
             state[agent_location[0], agent_location[1], 0] = 0.0
-            state[new_location[0], new_location[1], 0] = agent_id + 1.0
-            self.agents[agent_id, :] = new_location
+            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result) # result=0 - enabled, result=1 - disabled
+            agents[agent_id, :] = new_location
 
         # mark new cell as covered
         new_cell = state[new_location[0], new_location[1], 1] == 0.0
@@ -116,7 +118,8 @@ class AdvCoverage(ActionModel):
         # calculate reward
         reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell                 # Time & Cover
         reward += state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
-            (self.time_reward if self.alive > 1 else -1) / self.alive                               # Threats
+            (self.time_reward if self.alive > 1 else -1) / self.alive                               # Threats 
+            #! NOTE: count agents based on last perception rather than the current state
 
         return reward, terminated
     
@@ -127,14 +130,17 @@ class AdvCoverage(ActionModel):
 
         return obs.reshape(-1)
 
-    def _action_results(self, state, agent_id, action):
+    def _action_results(self, data, agent_id, action):
         # Possible action results depends on the threat in the new location
-        new_location = self.agents[agent_id, :] + self.action_effect[action]
-        p = state[new_location[0], new_location[1], 2]
+        new_location = data["agents"][0, agent_id, :] + self.action_effect[action]
+        p = data["state"][0, new_location[0], new_location[1], 2]
         return th.tensor([1.0-p, p] if p else [1.0])
 
-    def _get_state_shape(self, scheme, args):
-        return (self.height, self.width, 3)
+    def _get_data_shape(self, scheme, args):
+        return {
+            "state": ((self.height, self.width, 3), th.float32),
+            "agents": ((args.n_agents, 2), th.long)
+        }
 
     #$ DEBUG: plot a transition specified by time, including state, action, reward and new state
     def plot_transition(self, t, bs=0):
@@ -145,11 +151,11 @@ class AdvCoverage(ActionModel):
         print(f'Action: {action}\t Available Actions: {avail_actions}\t Reward: {reward}')
         
         state = self.buffer["obs"][bs, t, 0, :].reshape(self.height, self.width, -1)
-        state = (state[:, :, 1] * (1 - 3*state[:, :, 0]) + state[:, :, 2] - 8*state[:, :, 3]).cpu().tolist()
+        state = (state[:, :, 1] * (1 - 3*state[:, :, 0]) + state[:, :, 2] + 8*(state[:, :, 3] == -1)).cpu().tolist()
         state = [[self.state_repr[e] for e in row] for row in state]
 
         new_state = self.buffer["obs"][bs, t+1, 0, :].reshape(self.height, self.width, -1)
-        new_state = (new_state[:, :, 1] * (1 - 3*new_state[:, :, 0]) + new_state[:, :, 2] - 8*new_state[:, :, 3]).cpu().tolist()
+        new_state = (new_state[:, :, 1] * (1 - 3*new_state[:, :, 0]) + new_state[:, :, 2] + 8*(new_state[:, :, 3] == -1)).cpu().tolist()
         new_state = [[self.state_repr[e] for e in row] for row in new_state]
 
         for i in range(len(state)):

@@ -17,7 +17,7 @@ class ActionModel():
         self.stochastic_env = True              # TRUE by default - determinstic action models should override this attribute
         self.action_order = []                  # order of the agents that performed actions, used to back-updating the observations
         self.MCTS_sampling = args.MCTS_sampling # size of sample every action selection
-        self.mcts_buffer = MCTSBuffer(self._get_state_shape(scheme, args), args.MCTS_buffer_size, device=self.device)
+        self.mcts_buffer = MCTSBuffer(self._get_data_shape(scheme, args), args.MCTS_buffer_size, device=self.device)
 
         # Episodes management (no need in general, but for compatability with PyMARL)
         self.t = 0                  # time in the episode
@@ -56,7 +56,10 @@ class ActionModel():
             self.terminated = False
 
         state = self._update_env_state(state)   # update state (env-specific method) - used for updating stochastic results and extract state features
-        self.mcts_buffer.reset(state)
+        self.mcts_buffer.reset({
+            "state": state,
+            "agents": self.agents
+        })
 
         # In case of stochastic environment, updating the previous observations based on the new observations...
         if self.stochastic_env and self.t > 0:
@@ -72,17 +75,17 @@ class ActionModel():
 
         # PSeq assumpsion: transition function can be decomposed into the product of transition functions of the cliques
         # therefore, sample and e(xample) state from MCTS buffer to calculate possible result
-        e_state, _ = self.mcts_buffer.sample(sample_size=1)
-        p = self._action_results(e_state[0], agent_id, actions[0, agent_id])
+        data = self.mcts_buffer.sample(sample_size=1)
+        p_result = self._action_results(data, agent_id, actions[0, agent_id])
 
-        results = self.mcts_buffer.mcts_step(p)
+        results, probs = self.mcts_buffer.mcts_step(p_result)
+        dpack = [{k:v[i] for k, v in results.items()} for i in range(len(results["result"]))]
         reward, terminated = 0, False
-        for state, prob, result in results:
-            r, t = self._apply_action_on_state(state, agent_id, actions[0, agent_id], avail_actions, result=result)
-            reward += r*prob 
+        for d, p in zip(dpack, probs):
+            r, t = self._apply_action_on_state(d, agent_id, actions[0, agent_id], avail_actions)
+            reward += r*p
             #! 1. MCTS| ACTION MODEL SHOULD RETURN THE STATE - MAKE SURE IT'S UPDATED IN THE BUFFER!
-            #! 2. MCTS| FOLLOW DATA FLOW IN _apply_action_on_state
-            #! 3. MCTS| terminated should be back-updated (make sure that not harm the self-buffer mechanism)
+            #! 2. MCTS| terminated should be back-updated (make sure that not harm the self-buffer mechanism)
             terminated = terminated or t
 
         
@@ -103,18 +106,19 @@ class ActionModel():
 
             if terminated:# and not (self.t % self.n_agents):
                 self.batch.update({
-                    "obs": self.get_obs_agent(np.random.choice(self.n_agents))
+                    "obs": self.get_obs_agent(np.random.choice(self.n_agents))[0][0]
                 }, ts=self.t)
                 if not self.test_mode:
                     self.buffer.insert_episode_batch(self.batch)
 
     def get_obs_agent(self, agent_id):
-        states, probs = self.mcts_buffer.sample()
+        data = self.mcts_buffer.sample()
+        dpack = [{k:v[i] for k, v in data.items()} for i in range(data["probs"].numel())]
 
         obs = []
-        for state in states:
-            obs.append(self.get_obs_state(state, agent_id))
-        return th.stack(obs, dim=0), probs
+        for d in dpack:
+            obs.append(self.get_obs_state(d, agent_id))
+        return th.stack(obs, dim=0), data["probs"].reshape(-1, 1)
 
     """ Update env-specific properties of the environment """
     def _update_env_state(self, state):
@@ -146,8 +150,8 @@ class ActionModel():
     def _action_results(self, state, agent_id, action):
         raise NotImplementedError
 
-    def _get_state_shape(self, scheme, args):
-        return (scheme["obs"]["vshape"],)   # by default, scheme shape
+    def _get_data_shape(self, scheme, args):
+        return {"state": (scheme["obs"]["vshape"], th.float32)}
 
     @staticmethod
     def _one_hot(shape, one_hot):

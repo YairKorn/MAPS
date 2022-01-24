@@ -35,22 +35,24 @@ class AdvCoverage(ActionModel):
         self.invalid_reward   = getattr(self.args, "reward_invalid", 0.0)
         self.threat_reward    = getattr(self.args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
-        self.agents = th.zeros((self.n_agents, 2), dtype=th.long) # location vector
         self.enable = self.n_agents * [True]
 
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         state = state.reshape(self.height, self.width, -1)
-        self.state = state #! TEMP FOR MAKE SURE THAT NIGHT SIMULATIONS WILL WORK !#
+        data = self.mcts_buffer.sample(sample_size=1)
         
-        # extract agents' locations from the state
+        # Extract agents' locations from the state
         temp_agents = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
-        self.agents[identities] = temp_agents
+        
+        # Update state information
+        data["state"][0] = state
+        data["agents"][0][identities] = temp_agents
 
         # extract agents' status from state
         self.enable = [agent_id in identities for agent_id in range(self.n_agents)]
-        return state
+        return data
     
     """ Use the general state to create an observation for the agents """
     def get_obs_state(self, data, agent_id):
@@ -77,13 +79,14 @@ class AdvCoverage(ActionModel):
         return th.dstack((one_hot, observation)).reshape(-1)
 
     # Use avail_actions to detect obstacles; this function avoid collisions (case that another agent has moved to adjacent cell)
-    def get_avail_actions(self, agent_id, avail_actions):
+    def get_avail_actions(self, data, agent_id, avail_actions):
         if not self.enable[agent_id]:
             return avail_actions
-        #! MCTS| CHECK IT OUT
-        new_loc = self.agents[agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
-        no_collision = (self.state[new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
-            (self.state[new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
+
+        # Sample the (arbitrary) first state option to calculate available actions
+        new_loc = data["agents"][0][agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
+        no_collision = (data["state"][0][new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
+            (data["state"][0][new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
         return avail_actions * (~ no_collision)
 
 
@@ -113,7 +116,7 @@ class AdvCoverage(ActionModel):
 
         # check termination
         covered = th.sum(state[:, :, 1])
-        terminated = (covered == self.height * self.width) or (self.t == self.episode_limit - 1) or (not sum(self.enable))
+        terminated = (covered == self.height * self.width) or (self.t >= self.episode_limit - 1) or (not sum(self.enable))
 
         # calculate reward
         reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell                 # Time & Cover
@@ -123,10 +126,12 @@ class AdvCoverage(ActionModel):
 
         return reward, terminated
     
-    def _back_update(self, obs, state, ind):
-        obs = obs.reshape(self.height, self.width, -1)
-        for agent_id in self.action_order[:ind]:
-            obs[self.agents[agent_id, 0], self.agents[agent_id, 1], 1] = self.enable[agent_id]
+    """ back_update """
+    def _back_update(self, batch, data, t, n_episodes):
+        obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
+        for agent_id in self.action_order[:n_episodes]:
+            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = self.enable[agent_id]
+            batch["terminated"][0, t, 0] = (obs[:, :, 1].sum() == 0)
 
         return obs.reshape(-1)
 

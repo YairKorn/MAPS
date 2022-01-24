@@ -35,17 +35,18 @@ class PSeqMAC(BasicMAC):
 
         #$ DEBUG: Reset logger - record all q-values during an episode
         if t_ep == 0:
-            self.logger = th.zeros((0, self.n_actions)).detach()
+            self.logger = th.zeros((0, self.n_actions))
             
         # Array to store the chosen actions
         chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
         # PSeq core - runs the agents sequentially based on the chosen order
         for i in self.cliques:
             # get (pseudo-)observation batch from action model
-            obs, probs = self.action_model.get_obs_agent(i)
+            obs, data = self.action_model.get_obs_agent(i)
+            probs = data["probs"].view(-1, 1)
             
             # calculate values of the current (pseudo-)state batch and select action
-            avail_actions = self.action_model.get_avail_actions(i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
+            avail_actions = self.action_model.get_avail_actions(data, i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
 
             # Calculate action based on pseudo-state
             values = self.select_agent_action(self._build_inputs(obs, self.action_model.batch, self.action_model.t), i)
@@ -64,11 +65,11 @@ class PSeqMAC(BasicMAC):
         return chosen_actions
 
     def _build_inputs(self, obs, batch, t):
-        bs = batch.batch_size
+        bs = obs.shape[0]
         inputs = [obs]
 
         if self.args.obs_last_action:
-            last_action = (th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]).expand(bs, obs.shape[0], -1)
+            last_action = (th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]).expand(bs, 1, -1)
             inputs.append(last_action)
         return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1) #! bs?????
 
@@ -83,7 +84,6 @@ class PSeqMAC(BasicMAC):
 
     # Used only for training, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
-        # agent_inputs = self._build_inputs(ep_batch["obs"][:, t], self.action_model.buffer, t).view(ep_batch.batch_size, -1)
         agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
         agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
@@ -95,8 +95,6 @@ class PSeqMAC(BasicMAC):
         for s in range(steps, 0, -1):
             self.forward(self.action_model.batch, t=self.action_model.t-s)
         self.known_hidden_state = self.hidden_states.clone()
-
-
 
 
     #$ DEBUG: Plot the sequence of q-values for the whole episode

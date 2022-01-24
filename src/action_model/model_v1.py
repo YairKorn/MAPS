@@ -55,17 +55,14 @@ class ActionModel():
             self.t = 0                          # reset internal time
             self.terminated = False
 
-        state = self._update_env_state(state)   # update state (env-specific method) - used for updating stochastic results and extract state features
-        self.mcts_buffer.reset({
-            "state": state,
-            "agents": self.agents
-        })
+        data = self._update_env_state(state)   # update state (env-specific method) - used for updating stochastic results and extract state features
+        self.mcts_buffer.reset(data)
 
         # In case of stochastic environment, updating the previous observations based on the new observations...
         if self.stochastic_env and self.t > 0:
             # ... iterate over agents to update the observation
-            for s in range(len(self.action_order)-1, 0, -1):
-                self._back_update(self.batch["obs"][0, self.t-s, 0, :], state, len(self.action_order)-s) # tensors share physical memory
+            for s in range(1, len(self.action_order)):
+                self._back_update(self.batch, data, self.t-len(self.action_order)+s, s) # tensors share physical memory
         self.action_order = [] # reset order of actions
 
 
@@ -80,14 +77,14 @@ class ActionModel():
 
         results, probs = self.mcts_buffer.mcts_step(p_result)
         dpack = [{k:v[i] for k, v in results.items()} for i in range(len(results["result"]))]
-        reward, terminated = 0, False
+        reward, terminated = 0, True
         for d, p in zip(dpack, probs):
             r, t = self._apply_action_on_state(d, agent_id, actions[0, agent_id], avail_actions)
             reward += r*p
-            #! 1. MCTS| ACTION MODEL SHOULD RETURN THE STATE - MAKE SURE IT'S UPDATED IN THE BUFFER!
-            #! 2. MCTS| terminated should be back-updated (make sure that not harm the self-buffer mechanism)
-            terminated = terminated or t
-
+            #! MCTS| terminated should be back-updated (make sure that not harm the self-buffer mechanism)
+            #! MCTS| reward???
+            terminated = terminated and t
+        self.mcts_buffer.update(dpack)
         
         # Enter episodes to buffer only if test_mode is False
         if not self.terminated:
@@ -104,7 +101,7 @@ class ActionModel():
             self.terminated = terminated
             self.t += 1
 
-            if terminated:# and not (self.t % self.n_agents):
+            if terminated:
                 self.batch.update({
                     "obs": self.get_obs_agent(np.random.choice(self.n_agents))[0][0]
                 }, ts=self.t)
@@ -118,14 +115,15 @@ class ActionModel():
         obs = []
         for d in dpack:
             obs.append(self.get_obs_state(d, agent_id))
-        return th.stack(obs, dim=0), data["probs"].reshape(-1, 1)
+        return th.stack(obs, dim=0), data
 
     """ Update env-specific properties of the environment """
     def _update_env_state(self, state):
         return state
 
-    """ Update the previous, stochastic, observation based the new observation """
-    def _back_update(self, obs, state, ind):
+    """ Update the previous, stochastic, observation based the new observation
+        Generally, the observations, rewards and termination status should be updated (env-specific) """
+    def _back_update(self, batch, data, t, ind):
         raise NotImplementedError
 
     """ Use the general state to create a partial-observability observation for the agents """
@@ -133,7 +131,7 @@ class ActionModel():
         raise NotImplementedError
 
     """ Calculate available action in simulated state, default - don't change the env avail_actions """
-    def get_avail_actions(self, agent_id, avail_actions):
+    def get_avail_actions(self, data, agent_id, avail_actions):
         return avail_actions
 
     """ Simulate the result of action in the environment """

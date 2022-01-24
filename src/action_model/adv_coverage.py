@@ -131,8 +131,7 @@ class AdvCoverage(ActionModel):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
         for agent_id in self.action_order[:n_episodes]:
             obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = self.enable[agent_id]
-            batch["terminated"][0, t, 0] = (obs[:, :, 1].sum() == 0)
-
+            batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (t >= self.episode_limit))
         return obs.reshape(-1)
 
     def _action_results(self, data, agent_id, action):

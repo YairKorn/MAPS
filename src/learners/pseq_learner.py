@@ -1,3 +1,4 @@
+from enum import unique
 import torch as th
 import numpy as np
 from .TDn_learner import TDnLearner
@@ -25,13 +26,19 @@ class PSeqLearner(TDnLearner):
         if self.buffer.device != self.train_device:
             self.buffer.to(self.train_device)
 
+        # This part is a patch for MCTS: "terminated" may appear more than once in an episode due to inaccurate back_updaing mechanism
+        # instead of correcting it, it was patched to allow testing of MCTS
+        ind = th.where(self.buffer["terminated"])
+        unique_ind = th.unique_consecutive(ind[0], return_counts=True)[1]
+        unique_ind = ind[1][th.cat((th.tensor([0]), th.cumsum(unique_ind, dim=0)[:-1]), dim=0)]
+
+        for b in range(self.buffer.buffer_size):
+            self.buffer["filled"][b, unique_ind[b]+1:, 0] = 0
+            self.buffer["terminated"][b, unique_ind[b]+1:, 0] = 0
+
         # use the basic q-learner but episodes are taken from the internal, decomposed, buffer
         super().train(self.buffer, t_env, episode_num)
 
         # if buffer in should be in CPU, return the buffer from CUDA to the CPU
         if self.buffer.device != self.device:
             self.buffer.to(self.device)
-
-    # def gamma(self, l=1):
-    #     g = th.cat((th.ones((1, self.args.n_agents-1)), self.args.gamma*th.ones((1, 1))), axis=1)
-    #     return g.repeat(1, int(l/self.args.n_agents)+1)[0, :l]

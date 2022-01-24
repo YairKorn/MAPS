@@ -49,7 +49,7 @@ class PSeqMAC(BasicMAC):
             avail_actions = self.action_model.get_avail_actions(data, i, ep_batch["avail_actions"][:, t_ep, i]).unsqueeze(dim=1)
 
             # Calculate action based on pseudo-state
-            values = self.select_agent_action(self._build_inputs(obs, self.action_model.batch, self.action_model.t), i)
+            values = self.select_agent_action(self._build_inputs(obs.unsqueeze(dim=1), self.action_model.batch, self.action_model.t), i)
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
             # Update pseudo-hidden state based on the possible states
             self.hidden_states = (self.hidden_states * probs).sum(dim=0).reshape(1, -1) 
@@ -71,7 +71,7 @@ class PSeqMAC(BasicMAC):
         if self.args.obs_last_action:
             last_action = (th.zeros_like(batch["actions_onehot"][:, t]) if t == 0 else batch["actions_onehot"][:, t-1]).expand(bs, 1, -1)
             inputs.append(last_action)
-        return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1) #! bs?????
+        return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1)
 
     #  calculate q-values based on observation
     def select_agent_action(self, obs, i):

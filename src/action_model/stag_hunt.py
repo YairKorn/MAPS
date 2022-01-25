@@ -1,7 +1,5 @@
 import numpy as np
-
-from utils.dict2namedtuple import convert
-from .model_v1 import ActionModel
+from .action_model import ActionModel
 
 class StagHunt(ActionModel):
     def __init__(self, args):
@@ -17,7 +15,6 @@ class StagHunt(ActionModel):
 
 
     def update_state(self, input_state):
-        # ! TODO: merge agents (call to action model) then update execute_order
         self.state, self.state_prob = input_state[0].reshape((self.x_max, self.y_max, 3)), np.ones(1)
         return self._detect_interaction(self.state)
 

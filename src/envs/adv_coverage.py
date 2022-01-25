@@ -144,7 +144,7 @@ class AdversarialCoverage(MultiAgentEnv):
         self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
         if self.obstacles != []:
             self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
-        #! return self.get_obs(), self.get_state() #* check this out!
+
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons

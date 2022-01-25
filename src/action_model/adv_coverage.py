@@ -1,7 +1,7 @@
 import os, yaml
 import numpy as np
 import torch as th
-from .model_v1 import ActionModel
+from .action_model import ActionModel
 from collections import defaultdict
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
@@ -94,8 +94,8 @@ class AdvCoverage(ActionModel):
     def _apply_action_on_state(self, data, agent_id, action, avail_actions):
         state, agents, result = data["state"], data["agents"], data["result"]
         if not self.enable[agent_id]: # if agents is disabled, do nothing
-            terminated = (self.t == self.episode_limit - 1) or (not sum(self.enable))
-            return self.time_reward / self.n_agents, terminated
+            terminated = (not sum(self.enable))
+            return self.time_reward / self.alive, terminated
         
         agent_location = agents[agent_id, :]
         if not avail_actions.flatten()[action]:
@@ -107,7 +107,8 @@ class AdvCoverage(ActionModel):
 
         if state[new_location[0], new_location[1], 0] == 0 and state[new_location[0], new_location[1], 2] >= 0:
             state[agent_location[0], agent_location[1], 0] = 0.0
-            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result) # result=0 - enabled, result=1 - disabled
+            # Possible results: 0 = enabled, 1 = disabled
+            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result)
             agents[agent_id, :] = new_location
 
         # mark new cell as covered
@@ -116,10 +117,10 @@ class AdvCoverage(ActionModel):
 
         # check termination
         covered = th.sum(state[:, :, 1])
-        terminated = (covered == self.height * self.width) or (self.t >= self.episode_limit - 1) or (not sum(self.enable))
+        terminated = (covered == self.height * self.width) or (not sum(self.enable))
 
         # calculate reward
-        reward = self.time_reward / self.n_agents + self.new_cell_reward * new_cell                 # Time & Cover
+        reward = self.time_reward / self.alive + self.new_cell_reward * new_cell                 # Time & Cover
         reward += state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
             (self.time_reward if self.alive > 1 else -1) / self.alive                               # Threats 
             #! NOTE: count agents based on last perception rather than the current state
@@ -131,7 +132,7 @@ class AdvCoverage(ActionModel):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
         for agent_id in self.action_order[:n_episodes]:
             obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = self.enable[agent_id]
-            batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (t >= self.episode_limit))
+            batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
         return obs.reshape(-1)
 
     def _action_results(self, data, agent_id, action):
@@ -139,6 +140,10 @@ class AdvCoverage(ActionModel):
         new_location = data["agents"][0, agent_id, :] + self.action_effect[action]
         p = data["state"][0, new_location[0], new_location[1], 2]
         return th.tensor([1.0-p, p] if p else [1.0])
+
+    def detect_interaction(self):
+        # Only enabled agents take an action; if all disabled, arbitrary select 0 to get the terminated state
+        return np.where(self.enable)[0] if any(self.enable) else np.array([0])
 
     def _get_data_shape(self, scheme, args):
         return {

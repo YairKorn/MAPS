@@ -68,9 +68,10 @@ class TDnLearner(QLearner):
 
             # Mask "terminated"
             term_n = terminated.clone()
-            mask_ind = th.where(term_n)[1]
-            for ind in range(batch.batch_size):
-                term_n[ind, max(mask_ind[ind]-n+1, 0):mask_ind[ind], 0] = 1
+            mask_ind = th.where(term_n)
+            for i in range(mask_ind[0].numel()):
+                ep, ind = mask_ind[0][i], mask_ind[1][i]
+                term_n[ep, max(ind-n+1, 0):ind, 0] = 1
 
             # Calculate n-step Q-Learning targets
             targets.append(rewards_n + (self.args.gamma ** n) * (1 - term_n) * target_max_qvals_n)

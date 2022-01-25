@@ -14,7 +14,7 @@ class MCTSBuffer:
         self.data = SN()
         self.data = {"probs": th.cat((th.tensor([1], device=self.device), th.zeros(max_size-1, device=self.device)))}
 
-        assert "state" in scheme, "state shape must be in scheme"
+        assert "state" in scheme, "State shape must be in scheme"
         for k, v in scheme.items():
             self.data[k] = th.zeros((max_size,) + v[0], dtype=v[1], device=self.device)
         self.filled = 1 # count number of filled slots, start with an "empty state"

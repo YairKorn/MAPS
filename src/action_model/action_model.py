@@ -18,8 +18,10 @@ class ActionModel():
         self.action_order = []                  # order of the agents that performed actions, used to back-updating the observations
         self.MCTS_sampling = args.MCTS_sampling # size of sample every action selection
         self.mcts_buffer = MCTSBuffer(self._get_data_shape(scheme, args), args.MCTS_buffer_size, device=self.device)
+        print("### MCTS mode active ###")
 
         # Episodes management (no need in general, but for compatability with PyMARL)
+        self.env_t = 0              # real time of the environment
         self.t = 0                  # time in the episode
         self.test_mode = False      # mode, for preventing training on test episodes
         self.terminated = False     # used to prevent saving steps after the episode was ended
@@ -41,11 +43,11 @@ class ActionModel():
             "terminated": scheme["terminated"],
         }
         groups = {'agents': 1} # treat each agent to act in a specific timestep
-        self.episode_limit = args.episode_limit * self.n_agents
+        self.episode_limit = args.episode_limit
 
         # Buffer for sequential single-agent samples (rather than n-agents samples) #* (Fits to dynamic CG)
-        self.new_batch = partial(EpisodeBatch, model_scheme, groups, 1, self.episode_limit + 1, preprocess=None, device=self.device)
-        self.buffer = ReplayBuffer(model_scheme, groups, self.buffer_size, self.episode_limit + 1, device=self.device)
+        self.new_batch = partial(EpisodeBatch, model_scheme, groups, 1, self.episode_limit * self.n_agents + 1, preprocess=None, device=self.device)
+        self.buffer = ReplayBuffer(model_scheme, groups, self.buffer_size, self.episode_limit * self.n_agents + 1, device=self.device)
 
     """ When new perception is percepted, update the real state """
     def update_state(self, state, t_ep, test_mode):
@@ -55,7 +57,8 @@ class ActionModel():
             self.t = 0                          # reset internal time
             self.terminated = False
 
-        data = self._update_env_state(state)   # update state (env-specific method) - used for updating stochastic results and extract state features
+        self.env_t = t_ep                       # update environment real time
+        data = self._update_env_state(state)    # update state (env-specific method) - used for updating stochastic results and extract state features
         self.mcts_buffer.reset(data)
 
         # In case of stochastic environment, updating the previous observations based on the new observations...
@@ -81,10 +84,9 @@ class ActionModel():
         for d, p in zip(dpack, probs):
             r, t = self._apply_action_on_state(d, agent_id, actions[0, agent_id], avail_actions)
             reward += r*p
-            #! MCTS| terminated should be back-updated (make sure that not harm the self-buffer mechanism)
-            #! MCTS| reward???
             terminated = terminated and t
         self.mcts_buffer.update(dpack)
+        terminated = terminated or (self.env_t == self.episode_limit)
         
         # Enter episodes to buffer only if test_mode is False
         if not self.terminated:
@@ -98,15 +100,15 @@ class ActionModel():
             }
             
             self.batch.update(transition_data, ts=self.t)
-            self.terminated = terminated
+            self.terminated = terminated #or (self.env_t == self.episode_limit)
             self.t += 1
 
-            if terminated:
+            if terminated and (self.t < self.batch.max_seq_length):
                 self.batch.update({
                     "obs": self.get_obs_agent(np.random.choice(self.n_agents))[0][0]
                 }, ts=self.t)
-                if not self.test_mode:
-                    self.buffer.insert_episode_batch(self.batch)
+            if self.terminated and (not self.test_mode):
+                self.buffer.insert_episode_batch(self.batch)
 
     def get_obs_agent(self, agent_id):
         data = self.mcts_buffer.sample()
@@ -140,7 +142,7 @@ class ActionModel():
 
     """ This function build a dynamic CG using pre-defined (problem specific) model """
     def detect_interaction(self):
-        return np.arange(self.n_agents)     # by default, no interaction
+        return np.arange(self.n_agents) # by default, no interaction
 
     def plot_transition(self, t, bs=0):
         raise NotImplementedError

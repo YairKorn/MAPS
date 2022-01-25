@@ -13,7 +13,7 @@ class PSeqMAC(BasicMAC):
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
-        # ! CUDA - how to move calcs to GPU
+        #! CUDA - how to move calcs to GPU
             
 
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
@@ -76,7 +76,6 @@ class PSeqMAC(BasicMAC):
     #  calculate q-values based on observation
     def select_agent_action(self, obs, i):
         agent_outs, self.hidden_states = self.agent(obs, self.hidden_states.expand(1, obs.shape[0], -1))
-        #! MCTS| Make sure that this is not harm the learning procces!
         return agent_outs.view(1, obs.shape[0], -1)
    
     def init_hidden(self, batch_size):

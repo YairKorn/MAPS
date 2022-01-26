@@ -12,3 +12,4 @@ Include/
 Scripts/
 *.pyc
 pyvenv.*
+run_minitest.sh

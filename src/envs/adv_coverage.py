@@ -175,7 +175,7 @@ class AdversarialCoverage(MultiAgentEnv):
         remaining_cells = self.n_cells - np.sum(self.grid[:, :, 1])
         alive_agents = e.size
 
-        reward += (total_threats * remaining_cells * (self.time_reward if alive_agents > 1 else -1)) / alive_agents
+        reward += (total_threats * remaining_cells * (self.time_reward/(alive_agents-1) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
         threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]

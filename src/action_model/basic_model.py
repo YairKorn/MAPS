@@ -6,22 +6,24 @@ from components.mcts_buffer import MCTSBuffer
 from utils.dict2namedtuple import convert
 
 """ Basic action model class - action models inherit from it """
-class ActionModel():
-    def __init__(self, scheme, args) -> None:
+class BasicAM():
+    def __init__(self, scheme, args, stochastic=True) -> None:
         self.n_agents = args.n_agents
         self.n_actions = args.n_actions
         self.buffer_size = args.buffer_size
-        self.device = "cuda" if (args.use_cuda and not args.internal_buffer_cpu) else "cpu"
+        self.device = "cuda" if args.use_cuda else "cpu"
 
         # Mechanisms for stochastic environment
-        self.stochastic_env = True              # TRUE by default - determinstic action models should override this attribute
-        self.action_order = []                  # order of the agents that performed actions, used to back-updating the observations
+        self.stochastic_env = stochastic        # Specified in env-specific action model
+        self.action_order = []                  # Order of the agents that performed actions, used to back-updating the observations
+        self.apply_MCTS = args.apply_MCTS       # Select approximation method - MCTS (aprox. values) or Mean-state (aprox. state)
         self.MCTS_sampling = args.MCTS_sampling # size of sample every action selection
-        self.mcts_buffer = MCTSBuffer(self._get_data_shape(scheme, args), args.MCTS_buffer_size, device=self.device)
-        print("### MCTS mode active ###")
+
+        mcts_buffer_size = args.MCTS_buffer_size if (self.stochastic_env and self.apply_MCTS) else 1
+        self.mcts_buffer = MCTSBuffer(self._get_mcts_scheme(scheme, args), mcts_buffer_size, device=self.device)
 
         # Episodes management (no need in general, but for compatability with PyMARL)
-        self.env_t = 0              # real time of the environment
+        self.t_env = 0              # real time of the environment
         self.t = 0                  # time in the episode
         self.test_mode = False      # mode, for preventing training on test episodes
         self.terminated = False     # used to prevent saving steps after the episode was ended
@@ -33,7 +35,7 @@ class ActionModel():
             args = convert(args)
         self.args = args
 
-        # Buffers for store learning episodes (because the default buffer is not fit)
+        # Buffer for sequential single-agent samples (rather than n-agents samples)
         model_scheme = {
             "obs": scheme["obs"],
             "actions": scheme["actions"],
@@ -45,9 +47,11 @@ class ActionModel():
         groups = {'agents': 1} # treat each agent to act in a specific timestep
         self.episode_limit = args.episode_limit
 
-        # Buffer for sequential single-agent samples (rather than n-agents samples) #* (Fits to dynamic CG)
-        self.new_batch = partial(EpisodeBatch, model_scheme, groups, 1, self.episode_limit * self.n_agents + 1, preprocess=None, device=self.device)
+        self.new_batch = partial(EpisodeBatch, model_scheme, groups, 1, self.episode_limit * self.n_agents + 1, preprocess=None)
         self.buffer = ReplayBuffer(model_scheme, groups, self.buffer_size, self.episode_limit * self.n_agents + 1, device=self.device)
+
+        # General-env configuration
+        self.default_action = getattr(self.args, "default_action", 0)
 
     """ When new perception is percepted, update the real state """
     def update_state(self, state, t_ep, test_mode):
@@ -57,7 +61,7 @@ class ActionModel():
             self.t = 0                          # reset internal time
             self.terminated = False
 
-        self.env_t = t_ep                       # update environment real time
+        self.t_env = t_ep                       # update environment real time
         data = self._update_env_state(state)    # update state (env-specific method) - used for updating stochastic results and extract state features
         self.mcts_buffer.reset(data)
 
@@ -67,6 +71,7 @@ class ActionModel():
             for s in range(1, len(self.action_order)):
                 self._back_update(self.batch, data, self.t-len(self.action_order)+s, s) # tensors share physical memory
         self.action_order = [] # reset order of actions
+        return data
 
 
     """ Update the state based on an action """
@@ -76,7 +81,8 @@ class ActionModel():
         # PSeq assumpsion: transition function can be decomposed into the product of transition functions of the cliques
         # therefore, sample and e(xample) state from MCTS buffer to calculate possible result
         data = self.mcts_buffer.sample(sample_size=1)
-        p_result = self._action_results(data, agent_id, actions[0, agent_id])
+        p_result = self._action_results(data, agent_id, actions[0, agent_id]) \
+            if self.apply_MCTS else th.tensor([1.])     # If self.apply_MCTS is False, calculate mean-state w.p 1
 
         results, probs = self.mcts_buffer.mcts_step(p_result)
         dpack = [{k:v[i] for k, v in results.items()} for i in range(len(results["result"]))]
@@ -86,12 +92,12 @@ class ActionModel():
             reward += r*p
             terminated = terminated and t
         self.mcts_buffer.update(dpack)
-        terminated = terminated or (self.env_t == self.episode_limit)
+        terminated = terminated or (self.t_env == self.episode_limit)
         
         # Enter episodes to buffer only if test_mode is False
         if not self.terminated:
             transition_data = {
-                "obs": obs[0],
+                "obs": obs[0], # arbitrary selects one of the observations to store in buffer
                 "avail_actions": avail_actions,
                 "actions": [(actions[0, agent_id],)],
                 "actions_onehot": self._one_hot(self.n_actions, actions[0, agent_id]),
@@ -100,7 +106,7 @@ class ActionModel():
             }
             
             self.batch.update(transition_data, ts=self.t)
-            self.terminated = terminated #or (self.env_t == self.episode_limit)
+            self.terminated = terminated
             self.t += 1
 
             if terminated and (self.t < self.batch.max_seq_length):
@@ -110,13 +116,12 @@ class ActionModel():
             if self.terminated and (not self.test_mode):
                 self.buffer.insert_episode_batch(self.batch)
 
+    """ For a given agent return observation based on current possible states """
     def get_obs_agent(self, agent_id):
         data = self.mcts_buffer.sample()
         dpack = [{k:v[i] for k, v in data.items()} for i in range(data["probs"].numel())]
 
-        obs = []
-        for d in dpack:
-            obs.append(self.get_obs_state(d, agent_id))
+        obs = [self.get_obs_state(d, agent_id) for d in dpack]
         return th.stack(obs, dim=0), data
 
     """ Update env-specific properties of the environment """
@@ -141,16 +146,19 @@ class ActionModel():
         raise NotImplementedError
 
     """ This function build a dynamic CG using pre-defined (problem specific) model """
-    def detect_interaction(self):
+    def detect_interaction(self, data):
         return np.arange(self.n_agents) # by default, no interaction
 
+    """ A debug function (optional) to plot one transition of the environment """
     def plot_transition(self, t, bs=0):
         raise NotImplementedError
 
+    """ A function that get a state and action and return a vector of probabilities of possible outcomes """
     def _action_results(self, state, agent_id, action):
         raise NotImplementedError
 
-    def _get_data_shape(self, scheme, args):
+    """ State shape for initialization of MCTS buffer """
+    def _get_mcts_scheme(self, scheme, args):
         return {"state": (scheme["obs"]["vshape"], th.float32)}
 
     @staticmethod

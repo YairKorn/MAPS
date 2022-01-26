@@ -7,7 +7,7 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "Threat_7x7_Hard"     # A specified setup of the environment
+    map: "Threat_6x6_Medium"     # A specified setup of the environment
     # RECOMMENDED MAPS: Threat_8x8_Hard || Threat_7x7_Hard || Cov_11x11_9Rooms
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
@@ -25,13 +25,14 @@ env_args:
 
     allow_collisions: False # "True" allow two agents to be in the same cell
     allow_stay: True        # does agents can do "nothing action"
+    default_action: 4       # The "do nothing" action
 
     simulated_mode: False   # if enabled, agents doesn't disabled by threats
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
-    reward_succes: 0.0     # positive reward given if grid is fully covered
+    reward_succes: 0.0      # positive reward given if grid is fully covered
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
     reward_time: -1.0       # negative reward for every timestep
 

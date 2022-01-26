@@ -20,15 +20,5 @@ class PSeqLearner(TDnLearner):
 
     """ A learner of PSeq architecture """
     def train(self, _: EpisodeBatch, t_env: int, episode_num: int):
-        # This part is a patch for MCTS: "terminated" may appear more than once in an episode due to inaccurate back_updaing mechanism
-        # instead of correcting it, it was patched to allow testing of MCTS
-        # ind = th.where(self.buffer["terminated"])
-        # unique_ind = th.unique_consecutive(ind[0], return_counts=True)[1]
-        # unique_ind = ind[1][th.cat((th.tensor([0]), th.cumsum(unique_ind, dim=0)[:-1]), dim=0)]
-
-        # for b in range(self.buffer.buffer_size):
-        #     self.buffer["filled"][b, unique_ind[b]+1:, 0] = 0
-        #     self.buffer["terminated"][b, unique_ind[b]+1:, 0] = 0
-
-        # use the basic q-learner but episodes are taken from the internal, decomposed, buffer
+        # use the basic TDn-learner but episodes are taken from the internal, decomposed, buffer
         super().train(self.buffer, t_env, episode_num)

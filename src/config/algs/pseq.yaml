@@ -10,19 +10,19 @@ epsilon_anneal_time: 150000    # Number of time steps until exploration has fini
 # specify learner, controller and agent
 agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
-internal_buffer_cpu: false     # Internal buffer use CPU-only. If CUDA enabled, copy the buffer to GPU before learning
 double_q: True                # DDQN
 learner: "pseq_learner"       # The learner for PSeq
 mac: "pseq"                   # The multi-agent controller for PSeq
 mixer:                        # No mixing network for PSeq
-# mixing_embed_dim: 32          # Hidden dimensions of the state dependent bias function of DCG-V
 target_update_interval: 200   # Update the target network every {} episodes
-TDn_bound:                    # TD-lambda bound on n. null = n_agents+1
+TDn_bound:                    # TD-lambda bound on n. null -> n_agents+1
 TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
-# Stoachstic Environment
-MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment (in determinstic env, set automatically to 1)
-MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"
-
 # PSeq-specific configuration
-random_ordering: False
+random_ordering: False        # Re-order sequence of agents action-selection every step
+decomposed_reward: True       # When True, PSeq use reward from action model, otherwise divide the reward uniformly between all the agents
+
+# Stoachstic Environment
+apply_MCTS: False             # if True, MCTS buffer is activated. Otherwise, a mean-state is calculated (deterministic -> automatically False)
+MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment
+MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"

@@ -1,11 +1,12 @@
+from cgitb import enable
 import os, yaml
 import numpy as np
 import torch as th
-from .action_model import ActionModel
+from .basic_model import BasicAM
 from collections import defaultdict
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
-class AdvCoverage(ActionModel):
+class AdvCoverage(BasicAM):
     def __init__(self, scheme, args) -> None:
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
         env_map = os.path.join(MAP_PATH, (args.env_args["map"] if args.env_args["map"] is not None else 'default') + '.yaml')
@@ -14,7 +15,7 @@ class AdvCoverage(ActionModel):
             self.n_cells = self.height * self.width
         
         # Ideally, __init__ should've start here
-        super().__init__(scheme, args)
+        super().__init__(scheme, args, stochastic=True)
 
         # Basics of action model
         self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
@@ -35,8 +36,6 @@ class AdvCoverage(ActionModel):
         self.invalid_reward   = getattr(self.args, "reward_invalid", 0.0)
         self.threat_reward    = getattr(self.args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
-        self.enable = self.n_agents * [True]
-
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         state = state.reshape(self.height, self.width, -1)
@@ -49,9 +48,9 @@ class AdvCoverage(ActionModel):
         # Update state information
         data["state"][0] = state
         data["agents"][0][identities] = temp_agents
+        data["enable"][0] = th.tensor([agent_id in identities for agent_id in range(self.n_agents)])
 
         # extract agents' status from state
-        self.enable = [agent_id in identities for agent_id in range(self.n_agents)]
         return data
     
     """ Use the general state to create an observation for the agents """
@@ -64,12 +63,12 @@ class AdvCoverage(ActionModel):
         observation = state[:, :, watch].clone()
         agent_location = (agents[agent_id, 0], agents[agent_id, 1])
 
-        # Remove agents' id from observation - a robot in threatened cell is (1-p) alive
+        # Remove agents' id from observation
         observation[:, :, 0] = (observation[:, :, 0] != 0)
 
-        acted = th.tensor([agent_id in self.action_order for agent_id in range(self.n_agents)])
-        observation[agents[:, 0], agents[:, 1], 0] *= 1 - state[agents[:, 0], agents[:, 1], 2] * acted
-        self.alive = (observation[:, :, 0] > 0).sum()
+        if not self.apply_MCTS:
+            acted = th.tensor([agent_id in self.action_order for agent_id in range(self.n_agents)])
+            observation[agents[:, 0], agents[:, 1], 0] *= 1 - state[agents[:, 0], agents[:, 1], 2] * acted
 
         # Add agent's location (one-hot)
         one_hot = th.unsqueeze(th.zeros_like(observation[:, :, 0]), axis=2)
@@ -78,52 +77,50 @@ class AdvCoverage(ActionModel):
         # First layer is one-hot of agent's location, the other are the state data, reshaped to 1D vector
         return th.dstack((one_hot, observation)).reshape(-1)
 
+
     # Use avail_actions to detect obstacles; this function avoid collisions (case that another agent has moved to adjacent cell)
     def get_avail_actions(self, data, agent_id, avail_actions):
-        if not self.enable[agent_id]:
+        if not data["enable"][0, agent_id]:
             return avail_actions
 
         # Sample the (arbitrary) first state option to calculate available actions
-        new_loc = data["agents"][0][agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
-        no_collision = (data["state"][0][new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
-            (data["state"][0][new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
+        new_loc = data["agents"][0, agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
+        no_collision = (data["state"][0, new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
+            (data["state"][0, new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
         return avail_actions * (~ no_collision)
 
 
     """ Simulate the result of action in the environment """
     def _apply_action_on_state(self, data, agent_id, action, avail_actions):
-        state, agents, result = data["state"], data["agents"], data["result"]
-        if not self.enable[agent_id]: # if agents is disabled, do nothing
-            terminated = (not sum(self.enable))
-            return self.time_reward / self.alive, terminated
-        
+        state, agents, result, enable = data["state"], data["agents"], data["result"], data["enable"]
+        enable_agents = max(enable.sum(), 1) # number of enable agents, bound by 1 for prevent divergence
         agent_location = agents[agent_id, :]
-        if not avail_actions.flatten()[action]:
-            action = 4 # Do nothing (does not support invalid/collision reward)
 
-        # apply agent movement
-        new_location = agent_location + self.action_effect[action]
-        new_location %= th.tensor(state.shape[:2])
+        # No move is performed
+        if action == 4 or (not avail_actions.view(-1)[action]):
+            new_location = agent_location
+            new_cell = 0
 
-        if state[new_location[0], new_location[1], 0] == 0 and state[new_location[0], new_location[1], 2] >= 0:
+        else:
+            # Apply agent movement
+            new_location = (agent_location + self.action_effect[action]) % th.tensor(state.shape[:2])
             state[agent_location[0], agent_location[1], 0] = 0.0
-            # Possible results: 0 = enabled, 1 = disabled
-            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result)
+            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result) # possible results: 0 = enabled, 1 = disabled
             agents[agent_id, :] = new_location
 
-        # mark new cell as covered
-        new_cell = state[new_location[0], new_location[1], 1] == 0.0
-        state[new_location[0], new_location[1], 1] = 1.0
+            # mark new cell as covered
+            new_cell = state[new_location[0], new_location[1], 1] == 0.0
+            state[new_location[0], new_location[1], 1] = 1.0
 
-        # check termination
+        # Calculate reward
         covered = th.sum(state[:, :, 1])
-        terminated = (covered == self.height * self.width) or (not sum(self.enable))
+        reward = self.time_reward / enable_agents + self.new_cell_reward * new_cell                             # Time & Cover
+        reward += enable[agent_id] * state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
+            (self.time_reward/(enable_agents-1) if enable_agents > 1 else -1)                                   # Threats 
 
-        # calculate reward
-        reward = self.time_reward / self.alive + self.new_cell_reward * new_cell                 # Time & Cover
-        reward += state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
-            (self.time_reward if self.alive > 1 else -1) / self.alive                               # Threats 
-            #! NOTE: count agents based on last perception rather than the current state
+        # Termination status
+        enable[agent_id] *= (1 - result)
+        terminated = (covered == self.n_cells) or (not sum(enable))
 
         return reward, terminated
     
@@ -131,7 +128,7 @@ class AdvCoverage(ActionModel):
     def _back_update(self, batch, data, t, n_episodes):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
         for agent_id in self.action_order[:n_episodes]:
-            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = self.enable[agent_id]
+            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = data["enable"][0, agent_id]
             batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
         return obs.reshape(-1)
 
@@ -141,14 +138,16 @@ class AdvCoverage(ActionModel):
         p = data["state"][0, new_location[0], new_location[1], 2]
         return th.tensor([1.0-p, p] if p else [1.0])
 
-    def detect_interaction(self):
+    def detect_interaction(self, data):
         # Only enabled agents take an action; if all disabled, arbitrary select 0 to get the terminated state
-        return np.where(self.enable)[0] if any(self.enable) else np.array([0])
+        enable = data["enable"][0]
+        return np.where(enable)[0] if any(enable) else np.array([0])
 
-    def _get_data_shape(self, scheme, args):
+    def _get_mcts_scheme(self, scheme, args):
         return {
             "state": ((self.height, self.width, 3), th.float32),
-            "agents": ((args.n_agents, 2), th.long)
+            "agents": ((args.n_agents, 2), th.long),
+            "enable": ((self.n_agents, ), th.long)
         }
 
     #$ DEBUG: plot a transition specified by time, including state, action, reward and new state

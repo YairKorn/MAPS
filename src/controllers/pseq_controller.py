@@ -19,7 +19,7 @@ class PSeqMAC(BasicMAC):
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
-        self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
+        state_data = self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
 
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:
@@ -29,7 +29,7 @@ class PSeqMAC(BasicMAC):
                 self._propagate_hidden(steps=len(self.cliques))   
 
         # Detect interactions between agent, for selecting a joint action in these interactions
-        self.cliques = self.action_model.detect_interaction()
+        self.cliques = self.action_model.detect_interaction(state_data)
         if self.random_ordering:
             self.cliques = np.random.permutation(self.cliques)
 
@@ -38,7 +38,7 @@ class PSeqMAC(BasicMAC):
             self.logger = th.zeros((0, self.n_actions))
             
         # Array to store the chosen actions
-        chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
+        chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
         # PSeq core - runs the agents sequentially based on the chosen order
         for i in self.cliques:
             # get (pseudo-)observation batch from action model

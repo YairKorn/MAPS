@@ -1,7 +1,7 @@
 import numpy as np
-from .action_model import ActionModel
+from .basic_model import BasicAM
 
-class StagHunt(ActionModel):
+class StagHunt(BasicAM):
     def __init__(self, args):
         super().__init__(args)
 

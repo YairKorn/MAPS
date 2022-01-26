@@ -19,7 +19,7 @@ class PSeqMAC(BasicMAC):
     ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
-        state_data = self.action_model.update_state(ep_batch["state"][:, t_ep], t_ep, test_mode)
+        state_data = self.action_model.update_state(ep_batch, t_ep, test_mode)
 
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:

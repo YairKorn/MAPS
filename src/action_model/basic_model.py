@@ -27,6 +27,10 @@ class BasicAM():
         self.t = 0                  # time in the episode
         self.test_mode = False      # mode, for preventing training on test episodes
         self.terminated = False     # used to prevent saving steps after the episode was ended
+        
+        # Additional configuration attributes
+        self.decomposed_reward = getattr(args, "decomposed_reward", False)
+        self.default_action = getattr(args, "default_action", 0)
 
         # Unpack arguments from sacred
         if getattr(args, "env_args", None):
@@ -50,11 +54,9 @@ class BasicAM():
         self.new_batch = partial(EpisodeBatch, model_scheme, groups, 1, self.episode_limit * self.n_agents + 1, preprocess=None)
         self.buffer = ReplayBuffer(model_scheme, groups, self.buffer_size, self.episode_limit * self.n_agents + 1, device=self.device)
 
-        # General-env configuration
-        self.default_action = getattr(self.args, "default_action", 0)
 
     """ When new perception is percepted, update the real state """
-    def update_state(self, state, t_ep, test_mode):
+    def update_state(self, batch, t_ep, test_mode):
         if t_ep == 0:  # when the env time resets, a new episode has begun
             self.batch = self.new_batch()       # new batch for storing steps
             self.test_mode = test_mode          # does episode is for test or training
@@ -62,14 +64,20 @@ class BasicAM():
             self.terminated = False
 
         self.t_env = t_ep                       # update environment real time
-        data = self._update_env_state(state)    # update state (env-specific method) - used for updating stochastic results and extract state features
+        # update state (env-specific method) - used for updating stochastic results and extract state features
+        data = self._update_env_state(batch["state"][:, t_ep])    
         self.mcts_buffer.reset(data)
 
         # In case of stochastic environment, updating the previous observations based on the new observations...
-        if self.stochastic_env and self.t > 0:
+        if self.stochastic_env and t_ep > 0:
             # ... iterate over agents to update the observation
             for s in range(1, len(self.action_order)):
                 self._back_update(self.batch, data, self.t-len(self.action_order)+s, s) # tensors share physical memory
+        
+        # If decomposed reward is false, re-distribute the reward equally between the agents
+        if (not self.decomposed_reward) and t_ep > 0:
+            self.batch["reward"][:, (self.t-len(self.action_order)):self.t] = batch["reward"][:, t_ep-1] / len(self.action_order)
+        
         self.action_order = [] # reset order of actions
         return data
 
@@ -79,7 +87,7 @@ class BasicAM():
         self.action_order.append(agent_id)
 
         # PSeq assumpsion: transition function can be decomposed into the product of transition functions of the cliques
-        # therefore, sample and e(xample) state from MCTS buffer to calculate possible result
+        # therefore, sample an example state from MCTS buffer to calculate possible result
         data = self.mcts_buffer.sample(sample_size=1)
         p_result = self._action_results(data, agent_id, actions[0, agent_id]) \
             if self.apply_MCTS else th.tensor([1.])     # If self.apply_MCTS is False, calculate mean-state w.p 1

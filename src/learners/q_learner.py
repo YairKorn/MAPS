@@ -95,7 +95,7 @@ class QLearner:
 
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
-        print(f'original loss={loss}')
+
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()

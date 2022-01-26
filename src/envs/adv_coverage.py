@@ -193,7 +193,7 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # if the whole area was covered, or all agents are disabled, or episode limit was reached, end the episode
         terminated = mission_succes or not np.sum(self.agents_enabled) or self.steps >= self.episode_limit
-        info = {"episode_limit": terminated}
+        info = {"episode_limit": self.steps >= self.episode_limit}
         return reward, terminated, info
 
     # Claculate avaiable actions for all the agents

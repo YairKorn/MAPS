@@ -11,7 +11,6 @@ class MCTSBuffer:
 
         # Create data structure
         self.scheme = scheme
-        self.data = SN()
         self.data = {"probs": th.cat((th.tensor([1], device=self.device), th.zeros(max_size-1, device=self.device)))}
 
         assert "state" in scheme, "State shape must be in scheme"

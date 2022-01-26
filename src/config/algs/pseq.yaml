@@ -20,9 +20,9 @@ TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(
 
 # PSeq-specific configuration
 random_ordering: False        # Re-order sequence of agents action-selection every step
-decomposed_reward: True       # When True, PSeq use reward from action model, otherwise divide the reward uniformly between all the agents
+decomposed_reward: True      # If True, use agent-specific reward from action model. Otherwise, use divide the joint reward between agents
 
 # Stoachstic Environment
-apply_MCTS: False             # if True, MCTS buffer is activated. Otherwise, a mean-state is calculated (deterministic -> automatically False)
+apply_MCTS: True             # if True, MCTS buffer is activated. Otherwise, a mean-state is calculated (deterministic -> automatically False)
 MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment
 MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"

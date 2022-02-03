@@ -7,8 +7,8 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "Threat_6x6_Medium"     # A specified setup of the environment
-    # RECOMMENDED MAPS: Threat_8x8_Hard || Threat_7x7_Hard || Cov_11x11_9Rooms
+    map: "Threat_5x5_Hard"     # A specified setup of the environment
+    # RECOMMENDED MAPS: Threat_8x8_Hard || Threat_7x7_Hard || Threat_6x6_Medium
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
@@ -36,6 +36,10 @@ env_args:
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
     reward_time: -1.0       # negative reward for every timestep
 
+    # Logging options
+    log_env: True           # collect and print log of agents performance
+    visualize: True         # plot a gif of progress of learning
+    frame_rate: 0.2         # frame-speed of output sequence
 
     episode_limit: 100      # maximum number of time steps per episode
 

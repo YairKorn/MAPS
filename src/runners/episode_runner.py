@@ -40,13 +40,19 @@ class EpisodeRunner:
     def close_env(self):
         self.env.close()
 
-    def reset(self):
+    def reset(self, test_mode):
         self.batch = self.new_batch()
-        self.env.reset()
         self.t = 0
 
+        # Inform the environmment about run mode, for environment internal logging
+        kwargs = {
+            'test_mode': test_mode,
+            'test_nepisode': self.args.test_nepisode
+        }
+        self.env.reset(**kwargs)
+
     def run(self, test_mode=False):
-        self.reset()
+        self.reset(test_mode)
 
         terminated = False
         episode_return = 0

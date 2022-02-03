@@ -14,12 +14,13 @@ NOTES:
 * Environment is not compatable for batch mode for now (lean code without extra features)
 ? enable random placement of agents only once?
 """
-
-import os, yaml
+import os, yaml, datetime, imageio
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
 from collections import deque as queue
 import numpy as np
+np.set_printoptions(precision=2)
+import matplotlib.pyplot as plt
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
 class AdversarialCoverage(MultiAgentEnv):
@@ -117,15 +118,25 @@ class AdversarialCoverage(MultiAgentEnv):
         self.invalid_reward   = getattr(args, "reward_invalid", 0.0)
         self.threat_reward    = getattr(args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
+        # Logging
+        self.log_env       = getattr(args, "log_env", False)
+        self.log_stat      = {
+             "covered": np.zeros(world_shape),
+             "episode": 0
+        }
+        self.log_collector = []
+        self.test_mode     = False
+        self.nepisode      = 0
+
         # Internal variables
         self.agents = np.zeros(shape=(self.n_agents, 2), dtype=np.int16)
         self.agents_enabled = np.ones(self.n_agents, dtype=np.int16)
         self.steps = 0
         self.sum_rewards = 0
-        self.reset()
+        # self.reset()
 
     ################################ Env Functions ################################
-    def reset(self):
+    def reset(self, **kwargs):
         # Reset old episodes - enable agents, clear grid, reset statistisc
         self.agents_enabled.fill(1)
         self.grid[:, :, 0:2].fill(0.0)
@@ -145,6 +156,9 @@ class AdversarialCoverage(MultiAgentEnv):
         if self.obstacles != []:
             self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
 
+        if kwargs:
+            self.test_mode = kwargs['test_mode']
+            self.nepisode  = kwargs['test_nepisode']
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
@@ -172,10 +186,10 @@ class AdversarialCoverage(MultiAgentEnv):
         # Threats reward - indicate for the agents that they are in danger
         e = np.where(self.agents_enabled == 1)[0] # enabled agents
         total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2])
-        remaining_cells = self.n_cells - np.sum(self.grid[:, :, 1])
+        covered = np.sum(self.grid[:, :, 1])
         alive_agents = e.size
 
-        reward += (total_threats * remaining_cells * (self.time_reward/(alive_agents-1) if alive_agents > 1 else -1))
+        reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents-1) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
         threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
@@ -194,6 +208,11 @@ class AdversarialCoverage(MultiAgentEnv):
         # if the whole area was covered, or all agents are disabled, or episode limit was reached, end the episode
         terminated = mission_succes or not np.sum(self.agents_enabled) or self.steps >= self.episode_limit
         info = {"episode_limit": self.steps >= self.episode_limit}
+
+        # Logging (only for test episodes, when logger is on)
+        if self.log_env and self.test_mode and terminated:
+            self._logger()
+
         return reward, terminated, info
 
     # Claculate avaiable actions for all the agents
@@ -209,6 +228,8 @@ class AdversarialCoverage(MultiAgentEnv):
         return self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
 
     def close(self):
+        if self.args.visualize:
+            self._visualize_learning(frame_rate=self.args.frame_rate)
         print("Closing MRAC Environment")
 
     ################################ Obs Functions ################################
@@ -355,3 +376,64 @@ class AdversarialCoverage(MultiAgentEnv):
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid
         return np.stack(np.where(self.grid[:, :, 2] != -1)).transpose()[:self.n_agents]
+
+    # Simple logger to track agents' performances
+    def _logger(self):
+        self.log_stat["episode"] += 1
+        self.log_stat["covered"] += self.grid[:, :, 1]
+
+        if self.log_stat["episode"] == self.nepisode:
+            self.log_collector.append(self.log_stat["covered"].copy() / self.log_stat["episode"])
+            avg_cells = (np.sum(self.log_stat["covered"])) / self.log_stat["episode"] - len(self.obstacles)
+            print('ENV LOG | Average cells covered: {:.2f} out of {} free cells'.format(avg_cells, self.n_cells-len(self.obstacles)))
+            print(str(self.log_stat["covered"] * (self.grid[:, :, 2] != -1) / self.log_stat["episode"] - (self.grid[:, :, 2] == -1)).replace('-1. ', '  XX'))
+            
+            self.log_stat["covered"] *= 0
+            self.log_stat["episode"] = 0
+    
+
+    # Visualize dymanic of learning over time
+    def _visualize_learning(self, frame_rate=0.2):
+        FIG_SIZE = 6
+
+        # Set up directory for saving results
+        result_path = os.path.join(os.getcwd(), 'results', 'env')
+        if not os.path.exists(result_path):
+            os.makedirs(result_path)
+
+        result_path = os.path.join(result_path, datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
+        os.makedirs(result_path)
+
+        # Print threats on the map
+        textmap = [[str(self.grid[i, j, 2]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]
+        steps_pad = int(np.log10(len(self.log_collector))) + 1
+
+        # Per frame, restore the relevant stat and draw it using colormap
+        for s in range(len(self.log_collector)):
+            # Calculate data for table
+            f = self.log_collector[s]
+            colormap = [[self.__colormap((i, j), f[i, j]) for j in range(self.width)] for i in range(self.height)]
+            
+            # Create and configure plot
+            fig, ax = plt.subplots()
+            ax.set_title(f'MRAC With Map={self.args.map}, K={self.n_agents}; Time={str(s).zfill(steps_pad)}', \
+                fontsize='x-large', fontweight='bold', fontname='Ubuntu', pad=15)
+            fig.set_figheight(FIG_SIZE*0.95)
+            fig.set_figwidth(FIG_SIZE)
+
+            the_table = ax.table(cellText=textmap, cellColours=colormap, cellLoc='center', loc='center')
+            cell_height = 1 / self.height
+            for _, cell in the_table.get_celld().items():
+                cell.set_height(cell_height)
+            ax.axis("off")
+            
+            plt.savefig(os.path.join(result_path, 'fig' + str(s).zfill(steps_pad) + '.png'))
+            plt.close()
+
+        images = [imageio.imread(os.path.join(result_path, image)) for image in sorted(os.listdir(result_path))]
+        imageio.mimsave(os.path.join(result_path, 'visualization.gif'), images, duration=frame_rate)
+
+    # An aid-function for the visualizer
+    def __colormap(self, p, v):
+        x, y = p
+        return (0.0, 0.0, 0.0) if (self.grid[x, y, 2] == -1) else (1.0-0.411*v, 0.588+0.411*v, 0.588)

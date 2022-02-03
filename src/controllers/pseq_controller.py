@@ -73,18 +73,24 @@ class PSeqMAC(BasicMAC):
             inputs.append(last_action)
         return th.cat([x.reshape(obs.shape[0], -1) for x in inputs], dim=1)
 
-    #  calculate q-values based on observation
-    def select_agent_action(self, obs, i):
-        agent_outs, self.hidden_states = self.agent(obs, self.hidden_states.expand(1, obs.shape[0], -1))
+    # Calculate q-values based on observation
+    def select_agent_action(self, obs, agent):
+        agent_outs, hidden_states = self.agent(obs, self.hidden_states.expand(1, obs.shape[0], -1))
+        if self.action_model.active[agent]:
+            self.hidden_states = hidden_states
+
         return agent_outs.view(1, obs.shape[0], -1)
    
     def init_hidden(self, batch_size):
-        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, 1, -1)
+        self.hidden_states = self.agent.init_hidden().expand(batch_size, -1)
 
-    # Used only for training, not for action selection
+    # Used for training and propagating the hidden state in stochastic environment, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
         agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
-        agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
+        agent_outs, h = self.agent(agent_inputs, self.hidden_states)
+        
+        active = ep_batch["active"][:, t].view(-1, 1)
+        self.hidden_states = h*active + (self.hidden_states*(1-active)).detach()
 
         return agent_outs.view(ep_batch.batch_size, 1, -1)
 

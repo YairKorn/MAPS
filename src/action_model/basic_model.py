@@ -13,6 +13,9 @@ class BasicAM():
         self.buffer_size = args.buffer_size
         self.device = "cuda" if args.use_cuda else "cpu"
 
+        # General data fields
+        self.active = th.ones(self.n_agents, dtype=th.long)
+
         # Mechanisms for stochastic environment
         self.stochastic_env = stochastic        # Specified in env-specific action model
         self.action_order = []                  # Order of the agents that performed actions, used to back-updating the observations
@@ -30,7 +33,8 @@ class BasicAM():
         
         # Additional configuration attributes
         self.decomposed_reward = getattr(args, "decomposed_reward", False)
-        self.default_action = getattr(args, "default_action", 0)
+        self.skip_disabled     = getattr(args, "skip_disabled", False)
+        self.default_action    = getattr(args, "default_action", 0)
 
         # Unpack arguments from sacred
         if getattr(args, "env_args", None):
@@ -42,6 +46,7 @@ class BasicAM():
         # Buffer for sequential single-agent samples (rather than n-agents samples)
         model_scheme = {
             "obs": scheme["obs"],
+            "active": scheme["reward"],
             "actions": scheme["actions"],
             "avail_actions": scheme["avail_actions"],
             "actions_onehot": scheme["avail_actions"],
@@ -106,6 +111,7 @@ class BasicAM():
         if not self.terminated:
             transition_data = {
                 "obs": obs[0], # arbitrary selects one of the observations to store in buffer
+                "active": [(self.active[agent_id],)],
                 "avail_actions": avail_actions,
                 "actions": [(actions[0, agent_id],)],
                 "actions_onehot": self._one_hot(self.n_actions, actions[0, agent_id]),

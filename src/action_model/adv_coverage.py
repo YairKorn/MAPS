@@ -50,6 +50,9 @@ class AdvCoverage(BasicAM):
         data["agents"][0][identities] = temp_agents
         data["enable"][0] = th.tensor([agent_id in identities for agent_id in range(self.n_agents)])
 
+        # Mark disabled agents as inactive
+        self.active = data["enable"][0]
+
         # extract agents' status from state
         return data
     
@@ -113,8 +116,9 @@ class AdvCoverage(BasicAM):
             state[new_location[0], new_location[1], 1] = 1.0
 
         # Calculate reward
+        time_reward = self.time_reward / (enable_agents if self.skip_disabled else self.n_agents)               # Time
         covered = th.sum(state[:, :, 1])
-        reward = self.time_reward / enable_agents + self.new_cell_reward * new_cell                             # Time & Cover
+        reward = time_reward + self.new_cell_reward * new_cell                                                  # Cover
         reward += enable[agent_id] * state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
             (self.time_reward/(enable_agents-1) if enable_agents > 1 else -1)                                   # Threats 
 
@@ -140,8 +144,11 @@ class AdvCoverage(BasicAM):
 
     def detect_interaction(self, data):
         # Only enabled agents take an action; if all disabled, arbitrary select 0 to get the terminated state
-        enable = data["enable"][0]
-        return np.where(enable)[0] if any(enable) else np.array([0])
+        if self.skip_disabled:
+            enable = data["enable"][0]
+            return np.where(enable)[0] if any(enable) else np.array([0])
+        else:
+            return np.arange(self.n_agents)
 
     def _get_mcts_scheme(self, scheme, args):
         return {

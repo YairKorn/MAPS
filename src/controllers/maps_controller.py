@@ -4,19 +4,19 @@ from tabulate import tabulate
 from .basic_controller import BasicMAC
 from action_model import REGISTRY as model_REGISTRY
 
-class PSeqMAC(BasicMAC):
+class MultiAgentPseudoSequntialMAC(BasicMAC):
     def __init__(self, scheme, groups, args):
         super().__init__(scheme, groups, args)
         self.n_actions = args.n_actions
         
-        # PSeq properties & action model initalization
+        # MAPS properties & action model initalization
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
         #! CUDA - how to move calcs to GPU
             
 
-    ### This function overrides MAC's original function because PSeq selects actions sequentially and select actions cocurrently ###
+    ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         state_data = self.action_model.update_state(ep_batch, t_ep, test_mode)
@@ -39,7 +39,7 @@ class PSeqMAC(BasicMAC):
             
         # Array to store the chosen actions
         chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
-        # PSeq core - runs the agents sequentially based on the chosen order
+        # MAPS core - runs the agents sequentially based on the chosen order
         for i in self.cliques:
             # get (pseudo-)observation batch from action model
             obs, data = self.action_model.get_obs_agent(i)

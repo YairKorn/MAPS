@@ -1,5 +1,5 @@
-# Pseudo Sequential - MARL Architecture
-  
+# Multi-Agent Pseudo-Sequential (MAPS) - MARL Architecture
+
 ! Under work !
 In case of import errors, add the next command to ~/.bashsrc:
 ```
@@ -10,7 +10,7 @@ After finished, delete all occurences of #$
 
 
 ## Installation instructions
-Installation instruction from PSeq repository
+Installation instruction from MAPS repository
 
 Follow the first 2 steps from [PyMARL](https://github.com/oxwhirl/pymarl) :  
 1. Build the Dockerfile using     
@@ -46,20 +46,20 @@ The __algorithms__ can be imported by copying:
 ```
 src/action_model/*
 src/components/mcts_buffer.py
-src/config/algs/pseq.yaml
-src/controllers/pseq_controller.py
-src/learners/pseq_learner.py
+src/config/algs/maps.yaml
+src/controllers/maps_controller.py
+src/learners/maps_learner.py
 src/learners/TDn_learner.py
 ```
 by appending `src/controllers/__init__.py` with:
 ```
-from .pseq_controller import PSeqMAC
-REGISTRY["pseq"] = PSeqMAC
+from .maps_controller import MultiAgentPseudoSequntialMAC
+REGISTRY["maps"] = MultiAgentPseudoSequntialMAC
 ```
 by appending `src/learners/__init__.py` with:
 ```
-from .pseq_learner import PSeqLearner
-REGISTRY["pseq_learner"] = PSeqLearner
+from .maps_learner import MAPSLearner
+REGISTRY["maps_learner"] = MAPSLearner
 ```
 
 # To Be Continued...

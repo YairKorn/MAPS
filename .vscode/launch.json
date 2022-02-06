@@ -12,13 +12,13 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "PyMARL_PSeq",
+            "name": "PyMARL_MAPS",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=pseq",
+                "--config=maps",
                 "--env-config=adv_coverage",
                 "with",
                 "env_args.observe_ids=True",

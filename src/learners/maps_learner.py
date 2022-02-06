@@ -4,7 +4,7 @@ import numpy as np
 from .TDn_learner import TDnLearner
 from components.episode_buffer import EpisodeBatch
 
-class PSeqLearner(TDnLearner):
+class MAPSLearner(TDnLearner):
     def __init__(self, mac, scheme, logger, args):
         super().__init__(mac, scheme, logger, args)
         self.buffer = self.mac.action_model.buffer
@@ -18,7 +18,7 @@ class PSeqLearner(TDnLearner):
         print(f'### TDn Learner uses TD-1...{self.TDn_bound}, with weights: {self.TDn_weight[:, 0, 0, 0]}')
 
 
-    """ A learner of PSeq architecture """
+    """ A learner of MAPS architecture """
     def train(self, _: EpisodeBatch, t_env: int, episode_num: int):
         # use the basic TDn-learner but episodes are taken from the internal, decomposed, buffer
         super().train(self.buffer, t_env, episode_num)

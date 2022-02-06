@@ -85,4 +85,4 @@ if __name__ == "__main__":
     # Experiments on the same environment and plotted together
     args = make_parser().parse_args()
     visualize(args.prefix, args.window, args.c)
-    # visualize('Cov_11x11_9Boxes', 1, ['PSeq_Obs']) # Debug
+    # visualize('Cov_11x11_9Boxes', 1, ['MAPS_Obs']) # Debug

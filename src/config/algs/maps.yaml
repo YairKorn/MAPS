@@ -1,5 +1,5 @@
-# --- "Pseudo-Sequential" parameters ---
-name: "pseq"
+# --- "Multi-Agent Pseudo-Sequential" parameters ---
+name: "maps"
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -11,14 +11,14 @@ epsilon_anneal_time: 150000    # Number of time steps until exploration has fini
 agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
 double_q: True                # DDQN
-learner: "pseq_learner"       # The learner for PSeq
-mac: "pseq"                   # The multi-agent controller for PSeq
-mixer:                        # No mixing network for PSeq
+learner: "maps_learner"       # The learner for MAPS
+mac: "maps"                   # The multi-agent controller for MAPS
+mixer:                        # No mixing network for MAPS
 target_update_interval: 200   # Update the target network every {} episodes
 TDn_bound: 1                   # TD-lambda bound on n. null -> n_agents+1
 TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
-# PSeq-specific configuration
+# MAPS-specific configuration
 random_ordering: False        # Re-order sequence of agents action-selection every step
 decomposed_reward: True       # If True, use agent-specific reward from action model. Otherwise, use divide the joint reward between agents
 skip_disabled: False          # If True, disabled or removed agents are skipped

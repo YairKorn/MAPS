@@ -91,7 +91,7 @@ class BasicAM():
     def step(self, agent_id, actions, obs, avail_actions):
         self.action_order.append(agent_id)
 
-        # PSeq assumpsion: transition function can be decomposed into the product of transition functions of the cliques
+        # MAPS assumpsion: transition function can be decomposed into the product of transition functions of the cliques
         # therefore, sample an example state from MCTS buffer to calculate possible result
         data = self.mcts_buffer.sample(sample_size=1)
         p_result = self._action_results(data, agent_id, actions[0, agent_id]) \
@@ -173,7 +173,10 @@ class BasicAM():
 
     """ State shape for initialization of MCTS buffer """
     def _get_mcts_scheme(self, scheme, args):
-        return {"state": (scheme["obs"]["vshape"], th.float32)}
+        return {
+            "state": (scheme["obs"]["vshape"], th.float32),
+            "hidden": (args, th.float32)
+            }
 
     @staticmethod
     def _one_hot(shape, one_hot):

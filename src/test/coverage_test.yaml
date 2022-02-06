@@ -1,4 +1,4 @@
-# Coverage environment for experiments of PSeq, including:
+# Coverage environment for experiments of MAPS, including:
 #   1. Standard coverage (n agents in grid world)
 #   2. Adversarial coverage (with threat in the world) - stochastic world
 

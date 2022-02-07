@@ -39,8 +39,8 @@ class AdvCoverage(BasicAM):
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         state = state.reshape(self.height, self.width, -1)
-        data = self.mcts_buffer.sample(sample_size=1)
-        
+        data = self.mcts_buffer.sample(take_one=True)
+
         # Extract agents' locations from the state
         temp_agents = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
@@ -50,10 +50,6 @@ class AdvCoverage(BasicAM):
         data["agents"][0][identities] = temp_agents
         data["enable"][0] = th.tensor([agent_id in identities for agent_id in range(self.n_agents)])
 
-        # Mark disabled agents as inactive
-        self.active = data["enable"][0]
-
-        # extract agents' status from state
         return data
     
     """ Use the general state to create an observation for the agents """
@@ -131,15 +127,25 @@ class AdvCoverage(BasicAM):
     """ back_update """
     def _back_update(self, batch, data, t, n_episodes):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
-        for agent_id in self.action_order[:n_episodes]:
-            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = data["enable"][0, agent_id]
+        pre_correction  = obs[:, :, 1].sum()
+
+        r = self.action_order[:n_episodes]
+        for agent_id in r:
+            cell_status = ((data["agents"][0, r] == data["agents"][0, agent_id]).all(dim=1) * data["enable"][0, r]).any()
+            if obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] != cell_status:
+                print(f"Corretion: {self.t} changed\tCell: {data['agents'][0][agent_id]}\tAgent: {agent_id}")
+                print(f"Agent location: {data['agents'][0]};\tEnabled: {data['enable'][0]}")
+
+            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = cell_status
             batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
+        
+        assert obs[:, :, 1].sum() <= pre_correction
         return obs.reshape(-1)
 
     def _action_results(self, data, agent_id, action):
         # Possible action results depends on the threat in the new location
         new_location = data["agents"][0, agent_id, :] + self.action_effect[action]
-        p = data["state"][0, new_location[0], new_location[1], 2]
+        p = data["state"][0, new_location[0], new_location[1], 2] * data["enable"][0, agent_id]
         return th.tensor([1.0-p, p] if p else [1.0])
 
     def detect_interaction(self, data):
@@ -153,6 +159,7 @@ class AdvCoverage(BasicAM):
     def _get_mcts_scheme(self, scheme, args):
         return {
             "state": ((self.height, self.width, 3), th.float32),
+            "hidden": ((1, args.rnn_hidden_dim), th.float32),
             "agents": ((args.n_agents, 2), th.long),
             "enable": ((self.n_agents, ), th.long)
         }

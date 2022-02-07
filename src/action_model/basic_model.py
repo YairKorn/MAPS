@@ -13,9 +13,6 @@ class BasicAM():
         self.buffer_size = args.buffer_size
         self.device = "cuda" if args.use_cuda else "cpu"
 
-        # General data fields
-        self.active = th.ones(self.n_agents, dtype=th.long)
-
         # Mechanisms for stochastic environment
         self.stochastic_env = stochastic        # Specified in env-specific action model
         self.action_order = []                  # Order of the agents that performed actions, used to back-updating the observations
@@ -46,7 +43,6 @@ class BasicAM():
         # Buffer for sequential single-agent samples (rather than n-agents samples)
         model_scheme = {
             "obs": scheme["obs"],
-            "active": scheme["reward"],
             "actions": scheme["actions"],
             "avail_actions": scheme["avail_actions"],
             "actions_onehot": scheme["avail_actions"],
@@ -88,7 +84,7 @@ class BasicAM():
 
 
     """ Update the state based on an action """
-    def step(self, agent_id, actions, obs, avail_actions):
+    def step(self, agent_id, actions, obs, h_state, avail_actions):
         self.action_order.append(agent_id)
 
         # MAPS assumpsion: transition function can be decomposed into the product of transition functions of the cliques
@@ -97,7 +93,7 @@ class BasicAM():
         p_result = self._action_results(data, agent_id, actions[0, agent_id]) \
             if self.apply_MCTS else th.tensor([1.])     # If self.apply_MCTS is False, calculate mean-state w.p 1
 
-        results, probs = self.mcts_buffer.mcts_step(p_result)
+        results, probs = self.mcts_buffer.mcts_step(p_result, h_state)
         dpack = [{k:v[i] for k, v in results.items()} for i in range(len(results["result"]))]
         reward, terminated = 0, True
         for d, p in zip(dpack, probs):
@@ -111,7 +107,6 @@ class BasicAM():
         if not self.terminated:
             transition_data = {
                 "obs": obs[0], # arbitrary selects one of the observations to store in buffer
-                "active": [(self.active[agent_id],)],
                 "avail_actions": avail_actions,
                 "actions": [(actions[0, agent_id],)],
                 "actions_onehot": self._one_hot(self.n_actions, actions[0, agent_id]),
@@ -175,7 +170,7 @@ class BasicAM():
     def _get_mcts_scheme(self, scheme, args):
         return {
             "state": (scheme["obs"]["vshape"], th.float32),
-            "hidden": (args, th.float32)
+            "hidden": ((1, args.rnn_hidden_dim), th.float32)
             }
 
     @staticmethod

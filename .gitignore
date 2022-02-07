@@ -3,6 +3,7 @@
 
 # Exclude the results that you may have produced in past experiments
 results/
+batch_test.sh
 
 # Exclude libraries etc.
 tb_logs/
@@ -12,4 +13,3 @@ Include/
 Scripts/
 *.pyc
 pyvenv.*
-run_minitest.sh

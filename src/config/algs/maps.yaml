@@ -25,5 +25,8 @@ skip_disabled: False          # If True, disabled or removed agents are skipped
 
 # Stoachstic Environment
 apply_MCTS: True              # if True, MCTS buffer is activated. Otherwise, a mean-state is calculated (deterministic -> automatically False)
-MCTS_buffer_size: 4           # Size of MCTS buffer for stochastic environment
+MCTS_buffer_size: 16           # Size of MCTS buffer for stochastic environment
 MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"
+
+# Activate tests
+maps_test: False              # Set to be True by the tester

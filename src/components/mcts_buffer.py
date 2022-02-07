@@ -13,22 +13,26 @@ class MCTSBuffer:
         self.scheme = scheme
         self.data = {"probs": th.cat((th.tensor([1], device=self.device), th.zeros(max_size-1, device=self.device)))}
 
-        assert "state" in scheme, "State shape must be in scheme"
+        assert ("state" in scheme) and ("hidden" in scheme), "State shape & hidden shape must be in scheme"
         for k, v in scheme.items():
             self.data[k] = th.zeros((max_size,) + v[0], dtype=v[1], device=self.device)
         self.filled = 1 # count number of filled slots, start with an "empty state"
 
 
-    def sample(self, sample_size=0):
-        # sample size 0 means to get all available states
-        sample = np.arange(self.filled) if (not sample_size) else \
-             np.random.choice(self.filled, size=sample_size, replace=False, p=self.data["probs"][:self.filled].numpy())
+    def sample(self, sample_size=0, take_one=False):
+        # sample_size = 0 -> get all available states
+        # take_ont = True -> sample the first state (which is the "default" state)
+        if not take_one:
+            sample = np.arange(self.filled) if (not sample_size) else \
+                np.random.choice(self.filled, size=sample_size, replace=False, p=self.data["probs"][:self.filled].numpy())
+        else:
+            sample = np.zeros((1))
 
         return {k:self.data[k][sample] for k in self.data.keys()}
 
 
     # Sample from the possible results of an action, based on the action model, and return batch of states
-    def mcts_step(self, v_results):
+    def mcts_step(self, v_results, h_state):
         # Calculate probabilities of all possible outcomes; mask 
         results = (self.data["probs"][:self.filled].view(-1, 1) @ v_results.view(1, -1)).reshape(-1)
 
@@ -38,6 +42,7 @@ class MCTSBuffer:
 
         self.filled = sample.numel()
         self.data["probs"][:self.filled] = results[sample] / results[sample].sum()
+        self.data["hidden"][:self.filled] = th.unsqueeze(h_state[(sample/v_results.numel()).long()], dim=1)
 
         ret_data = {k:self.data[k][(sample/v_results.numel()).long()] for k in self.scheme.keys()}
         ret_data["result"] = [x%v_results.numel() for x in sample]
@@ -55,7 +60,14 @@ class MCTSBuffer:
 
     # Reset buffer, including save only one (known) state and delete all other states
     def reset(self, data):
+        temp = self.data["hidden"][0].clone()
         for k in self.scheme.keys():
             self.data[k][0] = data[k].reshape(self.scheme[k][0])
         self.data["probs"][0] = 1.0
         self.filled = 1
+
+        assert (temp == self.data["hidden"][0]).all()
+    
+    def post_reset(self, data):
+        for k in data.keys():
+            self.data[k][0] = data[k].reshape(self.scheme[k][0])

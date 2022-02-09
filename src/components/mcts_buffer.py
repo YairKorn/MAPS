@@ -1,7 +1,5 @@
-from numpy.random.mtrand import sample
 import torch as th
 import numpy as np
-from types import SimpleNamespace as SN
 
 class MCTSBuffer:
     def __init__(self, scheme, max_size, dtype=th.float32, device="cpu") -> None:
@@ -15,7 +13,7 @@ class MCTSBuffer:
 
         assert ("state" in scheme) and ("hidden" in scheme), "State shape & hidden shape must be in scheme"
         for k, v in scheme.items():
-            self.data[k] = th.zeros((max_size,) + v[0], dtype=v[1], device=self.device)
+            self.data[k] = th.zeros((max_size,) + v[0], dtype=v[1], requires_grad=False, device=self.device)
         self.filled = 1 # count number of filled slots, start with an "empty state"
 
 
@@ -35,7 +33,7 @@ class MCTSBuffer:
     def mcts_step(self, v_results, h_state):
         # Update hidden state - relative to state
         self.data["hidden"][:self.filled] = h_state
-
+        
         # Calculate probabilities of all possible outcomes; mask 
         results = (self.data["probs"][:self.filled].view(-1, 1) @ v_results.view(1, -1)).reshape(-1)
 

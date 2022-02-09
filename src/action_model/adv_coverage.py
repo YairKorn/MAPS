@@ -105,7 +105,7 @@ class AdvCoverage(BasicAM):
         agent_location = agents[agent_id, :].clone()
 
         # No move is performed
-        if (not avail_actions.view(-1)[action]): # action == 4 or 
+        if (not avail_actions.view(-1)[action]):
             action = 4
 
         if not enable[agent_id]:

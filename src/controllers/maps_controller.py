@@ -1,4 +1,3 @@
-import os, psutil #$ DEBUG
 import numpy as np
 import torch as th
 from tabulate import tabulate
@@ -36,7 +35,6 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         if t_ep == 0:
             self.agent.eval() #! This is not debug
             self.logger = th.zeros((0, self.n_actions))
-            print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
 
         # Array to store the chosen actions
         chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
@@ -51,7 +49,8 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
             # Calculate action based on pseudo-state
             inputs = self._build_inputs(obs.unsqueeze(dim=1), self.action_model.batch, self.action_model.t)
-            values, hidden_states = self.select_agent_action(inputs, data["hidden"])
+            with th.no_grad():
+                values, hidden_states = self.select_agent_action(inputs, data["hidden"])
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
 
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
@@ -61,6 +60,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
             #$ DEBUG: Log q-values in the logger
             self.logger = th.cat((self.logger, th.squeeze(values, axis=1)), axis=0)
+        # del data, state_data
 
         return chosen_actions
 
@@ -95,7 +95,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
         # Update the MCTS buffer with the correct hidden state
         self.action_model.mcts_buffer.post_reset({
-            "hidden": self.hidden_states
+            "hidden": self.hidden_states.detach()
         })
 
 
@@ -125,11 +125,3 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
     def last_transition(self):
         bs=self.action_model.buffer.buffer_index-1
         return th.sum(self.action_model.buffer['filled'][bs, :, 0])
-
-    #$ TEST: Get 2 tensors and assert if the relative error is higher than ERR
-    @staticmethod
-    def compare_float(t1, t2):
-        ERR = 1e-6 # allowed error (average over abs difference)
-        c = (th.abs(t1 - t2)/t1.numel()).sum()
-        print(f"Value of comprasion: {c}")
-        assert c < ERR

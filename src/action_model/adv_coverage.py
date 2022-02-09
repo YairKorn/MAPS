@@ -177,7 +177,7 @@ class AdvCoverage(BasicAM):
     def _get_mcts_scheme(self, scheme, args):
         return {
             "state": ((self.height, self.width, 3), th.float32),
-            "hidden": ((1, args.rnn_hidden_dim), th.float32),
+            "hidden": ((args.rnn_hidden_dim, ), th.float32),
             "agents": ((args.n_agents, 2), th.long),
             "enable": ((self.n_agents, ), th.long)
         }

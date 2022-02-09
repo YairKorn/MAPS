@@ -21,7 +21,7 @@ class MCTSBuffer:
 
     def sample(self, sample_size=0, take_one=False):
         # sample_size = 0 -> get all available states
-        # take_ont = True -> sample the first state (which is the "default" state)
+        # take_one = True -> sample the first state (which is the "default" state)
         if not take_one:
             sample = np.arange(self.filled) if (not sample_size) else \
                 np.random.choice(self.filled, size=sample_size, replace=False, p=self.data["probs"][:self.filled].numpy())
@@ -33,6 +33,9 @@ class MCTSBuffer:
 
     # Sample from the possible results of an action, based on the action model, and return batch of states
     def mcts_step(self, v_results, h_state):
+        # Update hidden state - relative to state
+        self.data["hidden"][:self.filled] = h_state
+        
         # Calculate probabilities of all possible outcomes; mask 
         results = (self.data["probs"][:self.filled].view(-1, 1) @ v_results.view(1, -1)).reshape(-1)
 
@@ -42,7 +45,6 @@ class MCTSBuffer:
 
         self.filled = sample.numel()
         self.data["probs"][:self.filled] = results[sample] / results[sample].sum()
-        self.data["hidden"][:self.filled] = th.unsqueeze(h_state[(sample/v_results.numel()).long()], dim=1)
 
         ret_data = {k:self.data[k][(sample/v_results.numel()).long()] for k in self.scheme.keys()}
         ret_data["result"] = [x%v_results.numel() for x in sample]
@@ -57,16 +59,18 @@ class MCTSBuffer:
             self.data[k][:len(data), :] = th.stack([d[k] for d in data], dim=0)
         self.filled = len(data)
     
+        for i in range(self.filled): #$#$#$#
+            print(f"{self.data['hidden'][i, :4]}\t{self.data['enable'][i]}\t State: {self.data['state'][i, :,:,0].sum()}")
 
     # Reset buffer, including save only one (known) state and delete all other states
     def reset(self, data):
-        temp = self.data["hidden"][0].clone()
+        temp = self.data["hidden"][0].clone() #$#$
         for k in self.scheme.keys():
             self.data[k][0] = data[k].reshape(self.scheme[k][0])
         self.data["probs"][0] = 1.0
         self.filled = 1
 
-        assert (temp == self.data["hidden"][0]).all()
+        assert (temp == self.data["hidden"][0]).all() #$#$
     
     def post_reset(self, data):
         for k in data.keys():

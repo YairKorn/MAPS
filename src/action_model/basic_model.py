@@ -100,6 +100,8 @@ class BasicAM():
             r, t = self._apply_action_on_state(d, agent_id, actions[0, agent_id], avail_actions)
             reward += r*p
             terminated = terminated and t
+        
+        print(f"Updating: {self.t}:")
         self.mcts_buffer.update(dpack)
         terminated = terminated or (self.t_env == self.episode_limit)
         
@@ -170,7 +172,7 @@ class BasicAM():
     def _get_mcts_scheme(self, scheme, args):
         return {
             "state": (scheme["obs"]["vshape"], th.float32),
-            "hidden": ((1, args.rnn_hidden_dim), th.float32)
+            "hidden": ((args.rnn_hidden_dim, ), th.float32)
             }
 
     @staticmethod

@@ -18,16 +18,16 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         #! CUDA - how to move calcs to GPU
 
         self.enable = th.tensor([0] * self.n_agents) #$ TEST: reset
-        # self.h_states = []
-        # self.m_states = []
-        # self.t_states = []
+        self.h_states = []
+        self.m_states = []
+        self.t_states = []
 
     ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         self.F = self.action_model.mcts_buffer.filled #$#$#$#$#
         state_data = self.action_model.update_state(ep_batch, t_ep, test_mode)
-        # self.t_states.append(self.action_model.mcts_buffer.data["hidden"][0].clone()) #$#$#$#
+        self.t_states.append(self.action_model.mcts_buffer.data["hidden"][0].clone()) #$#$#$#
 
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:
@@ -45,9 +45,9 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
             self.logger = th.zeros((0, self.n_actions))
             print(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2)
 
-            # self.h_states = []
-            # self.m_states = []
-            # self.t_states = []
+            self.h_states = []
+            self.m_states = []
+            self.t_states = []
 
         # Array to store the chosen actions
         chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
@@ -69,7 +69,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
             # simulate action in the environment
             self.action_model.step(i, chosen_actions, obs, hidden_states, avail_actions)
-            # self.m_states.append(self.action_model.mcts_buffer.data["hidden"][0].clone())
+            self.m_states.append(self.action_model.mcts_buffer.data["hidden"][0].clone())
 
             #$ DEBUG: Log q-values in the logger
             self.logger = th.cat((self.logger, th.squeeze(values, axis=1)), axis=0)
@@ -103,13 +103,15 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
     # Update the hidden state based on the real outcomes (rather than estimated outcomes as calculated during the sequential run)
     def _propagate_hidden(self, steps):
         for s in range(steps, 0, -1):
-            # self.h_states.append(self.hidden_states.clone())
+            self.h_states.append(self.hidden_states.clone())
             self.forward(self.action_model.batch, t=self.action_model.t-s)
         
-        # #$ TEST: Updates occured in a correct manner ################# CONTINUE  #################
-        # if self.action_model.t and (self.enable[0, 1:] == self.action_model.mcts_buffer.sample(1)["enable"][0][1:]).all():
+        # # #$ TEST: Updates occured in a correct manner ################# CONTINUE  #################
+        # if self.action_model.t and not self.action_model.terminated:# and (self.enable[0, 1:] == self.action_model.mcts_buffer.sample(1)["enable"][0][1:]).all():
         #     cmp_idx = int(self.F/2) * (self.enable[0, 0] - self.action_model.mcts_buffer.sample(1)["enable"][0][0])
         #     self.compare_float(self.hidden_states, self.action_model.mcts_buffer.data["hidden"][cmp_idx])
+        #     if cmp_idx:
+        #         print(f"Test passed; idx={cmp_idx}")
 
         # Update the MCTS buffer with the correct hidden state
         self.action_model.mcts_buffer.post_reset({
@@ -149,4 +151,5 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
     def compare_float(t1, t2):
         ERR = 1e-6 # allowed error (average over abs difference)
         c = (th.abs(t1 - t2)/t1.numel()).sum()
+        print(f"Value of comprasion: {c}")
         assert c < ERR

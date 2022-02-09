@@ -35,7 +35,7 @@ class MCTSBuffer:
     def mcts_step(self, v_results, h_state):
         # Update hidden state - relative to state
         self.data["hidden"][:self.filled] = h_state
-        
+
         # Calculate probabilities of all possible outcomes; mask 
         results = (self.data["probs"][:self.filled].view(-1, 1) @ v_results.view(1, -1)).reshape(-1)
 
@@ -58,19 +58,13 @@ class MCTSBuffer:
         for k in self.scheme.keys():
             self.data[k][:len(data), :] = th.stack([d[k] for d in data], dim=0)
         self.filled = len(data)
-    
-        for i in range(self.filled): #$#$#$#
-            print(f"{self.data['hidden'][i, :4]}\t{self.data['enable'][i]}\t State: {self.data['state'][i, :,:,0].sum()}")
 
     # Reset buffer, including save only one (known) state and delete all other states
     def reset(self, data):
-        temp = self.data["hidden"][0].clone() #$#$
         for k in self.scheme.keys():
             self.data[k][0] = data[k].reshape(self.scheme[k][0])
         self.data["probs"][0] = 1.0
         self.filled = 1
-
-        assert (temp == self.data["hidden"][0]).all() #$#$
     
     def post_reset(self, data):
         for k in data.keys():

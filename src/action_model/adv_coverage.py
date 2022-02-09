@@ -148,11 +148,6 @@ class AdvCoverage(BasicAM):
                 cell_status = ((data["agents"][0, r] == data["agents"][0, agent_id]).all(dim=1) * data["enable"][0, r]).any()
                 obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = cell_status
 
-                # #$ Debug message
-                # print(f"Corretion: {t} changed\tCell: {data['agents'][0][agent_id]}\tAgent: {agent_id}")
-                # print(f"Agent location: {data['agents'][0]};\tEnabled: {data['enable'][0]}")
-                # print(obs[:, :, 1])
-                # print("\n\n")
             batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
         
         # assert obs[:, :, 1].sum() == data["enable"][0, self.action_order[:n_episodes]].sum() + self.prev_enable[self.action_order[n_episodes:]].sum(), "Wrong update"

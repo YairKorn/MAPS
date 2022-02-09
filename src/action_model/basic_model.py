@@ -101,7 +101,6 @@ class BasicAM():
             reward += r*p
             terminated = terminated and t
         
-        print(f"Updating: {self.t}:")
         self.mcts_buffer.update(dpack)
         terminated = terminated or (self.t_env == self.episode_limit)
         

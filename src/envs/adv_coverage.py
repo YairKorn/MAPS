@@ -222,10 +222,16 @@ class AdversarialCoverage(MultiAgentEnv):
     # Calculate the available actions for a specific agent
     def get_avail_agent_actions(self, agent):
         if not self.agents_enabled[agent]:
-            return np.array([False] * 4 + [True])[:self.n_actions]
+            avail_actions = np.array([False] * 4 + [True])
+        else:
+            next_location = self.agents[agent] + self.action_effect + 1 # avail_actions is padded
+            avail_actions = self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
 
-        next_location = self.agents[agent] + self.action_effect[:self.n_actions] + 1 # avail_actions is padded
-        return self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
+            next_location = self.agents[agent] + avail_actions.reshape(-1, 1) * self.action_effect
+            avail_actions = self.grid[next_location[:, 0], next_location[:, 1], 0] == 0
+            avail_actions[-1] = True
+        
+        return avail_actions[:self.n_actions]
 
     def close(self):
         if self.args.visualize:

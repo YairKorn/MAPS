@@ -70,7 +70,7 @@ class BasicAM():
         self.mcts_buffer.reset(data)
 
         # In case of stochastic environment, updating the previous observations based on the new observations...
-        if self.stochastic_env and t_ep > 0:
+        if self.stochastic_env and (not self.terminated) and (t_ep > 0):
             # ... iterate over agents to update the observation
             for s in range(1, len(self.action_order)):
                 self._back_update(self.batch, data, self.t-len(self.action_order)+s, s) # tensors share physical memory

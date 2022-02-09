@@ -36,6 +36,9 @@ class AdvCoverage(BasicAM):
         self.invalid_reward   = getattr(self.args, "reward_invalid", 0.0)
         self.threat_reward    = getattr(self.args, "reward_threat", 1.0) # this constant is multiplied by the designed reward function
 
+        # Env-specific attributes
+        self.prev_enable      = th.ones(self.n_agents)
+
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
         state = state.reshape(self.height, self.width, -1)
@@ -44,11 +47,16 @@ class AdvCoverage(BasicAM):
         # Extract agents' locations from the state
         temp_agents = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
+        # assert (not self.t) or (data["agents"][0][identities] == temp_agents).all(), "Mismatch update!"
         
         # Update state information
         data["state"][0] = state
         data["agents"][0][identities] = temp_agents
         data["enable"][0] = th.tensor([agent_id in identities for agent_id in range(self.n_agents)])
+
+        #$ TEST
+        if not self.t:
+            self.prev_enable = th.ones(self.n_agents)
 
         return data
     
@@ -72,6 +80,7 @@ class AdvCoverage(BasicAM):
         # Add agent's location (one-hot)
         one_hot = th.unsqueeze(th.zeros_like(observation[:, :, 0]), axis=2)
         one_hot[agent_location[0], agent_location[1]] = 1.0
+        # assert observation[:, :, 0].sum() == data["enable"].sum(), "Wrong update"
 
         # First layer is one-hot of agent's location, the other are the state data, reshaped to 1D vector
         return th.dstack((one_hot, observation)).reshape(-1)
@@ -93,23 +102,29 @@ class AdvCoverage(BasicAM):
     def _apply_action_on_state(self, data, agent_id, action, avail_actions):
         state, agents, result, enable = data["state"], data["agents"], data["result"], data["enable"]
         enable_agents = max(enable.sum(), 1) # number of enable agents, bound by 1 for prevent divergence
-        agent_location = agents[agent_id, :]
+        agent_location = agents[agent_id, :].clone()
 
         # No move is performed
-        if action == 4 or (not avail_actions.view(-1)[action]):
-            new_location = agent_location
-            new_cell = 0
+        if (not avail_actions.view(-1)[action]): # action == 4 or 
+            action = 4
 
+        if not enable[agent_id]:
+            new_location = agent_location
+        
         else:
             # Apply agent movement
             new_location = (agent_location + self.action_effect[action]) % th.tensor(state.shape[:2])
             state[agent_location[0], agent_location[1], 0] = 0.0
-            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * (1 - result) # possible results: 0 = enabled, 1 = disabled
+
+            enable[agent_id] *= (1 - result) # possible results: 0 = enabled, 1 = disabled
+            state[new_location[0], new_location[1], 0] = (agent_id + 1.0) * enable[agent_id]
             agents[agent_id, :] = new_location
 
-            # mark new cell as covered
-            new_cell = state[new_location[0], new_location[1], 1] == 0.0
-            state[new_location[0], new_location[1], 1] = 1.0
+        # mark new cell as covered
+        new_cell = state[new_location[0], new_location[1], 1] == 0.0
+        state[new_location[0], new_location[1], 1] = 1.0
+
+        # assert (enable * (th.arange(self.n_agents) + 1)).sum() == state[:, :, 0].sum(), "Wrong update"
 
         # Calculate reward
         time_reward = self.time_reward / (enable_agents if self.skip_disabled else self.n_agents)               # Time
@@ -119,7 +134,6 @@ class AdvCoverage(BasicAM):
             (self.time_reward/(enable_agents-1) if enable_agents > 1 else -1)                                   # Threats 
 
         # Termination status
-        enable[agent_id] *= (1 - result)
         terminated = (covered == self.n_cells) or (not sum(enable))
 
         return reward, terminated
@@ -127,19 +141,23 @@ class AdvCoverage(BasicAM):
     """ back_update """
     def _back_update(self, batch, data, t, n_episodes):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
-        pre_correction  = obs[:, :, 1].sum()
 
         r = self.action_order[:n_episodes]
         for agent_id in r:
-            cell_status = ((data["agents"][0, r] == data["agents"][0, agent_id]).all(dim=1) * data["enable"][0, r]).any()
-            if obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] != cell_status:
-                print(f"Corretion: {self.t} changed\tCell: {data['agents'][0][agent_id]}\tAgent: {agent_id}")
-                print(f"Agent location: {data['agents'][0]};\tEnabled: {data['enable'][0]}")
+            if data["enable"][0, agent_id] != self.prev_enable[agent_id]:
+                cell_status = ((data["agents"][0, r] == data["agents"][0, agent_id]).all(dim=1) * data["enable"][0, r]).any()
+                obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = cell_status
 
-            obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = cell_status
+                # #$ Debug message
+                # print(f"Corretion: {t} changed\tCell: {data['agents'][0][agent_id]}\tAgent: {agent_id}")
+                # print(f"Agent location: {data['agents'][0]};\tEnabled: {data['enable'][0]}")
+                # print(obs[:, :, 1])
+                # print("\n\n")
             batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
         
-        assert obs[:, :, 1].sum() <= pre_correction
+        # assert obs[:, :, 1].sum() == data["enable"][0, self.action_order[:n_episodes]].sum() + self.prev_enable[self.action_order[n_episodes:]].sum(), "Wrong update"
+        if self.t - t == 1:
+            self.prev_enable = data["enable"][0].clone()
         return obs.reshape(-1)
 
     def _action_results(self, data, agent_id, action):

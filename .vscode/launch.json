@@ -21,7 +21,6 @@
                 "--config=maps",
                 "--env-config=adv_coverage",
                 "with",
-                "env_args.observe_ids=True",
                 "obs_agent_id=False",
                 "-d"
             ],
@@ -36,7 +35,6 @@
                 "--config=iql",
                 "--env-config=adv_coverage",
                 "with",
-                "env_args.observe_ids=False",
                 "obs_agent_id=True",
                 "-d"
             ],
@@ -51,7 +49,6 @@
                 "--config=dcg",
                 "--env-config=adv_coverage",
                 "with",
-                "env_args.observe_ids=False",
                 "obs_agent_id=True",
                 "-d"
             ]

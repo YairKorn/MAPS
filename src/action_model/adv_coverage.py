@@ -56,7 +56,7 @@ class AdvCoverage(BasicAM):
 
         #$ TEST
         if not self.t:
-            self.prev_enable = th.ones(self.n_agents)
+            self.prev_enable = th.ones(self.n_agents, dtype=th.long)
 
         return data
     
@@ -127,29 +127,39 @@ class AdvCoverage(BasicAM):
         # assert (enable * (th.arange(self.n_agents) + 1)).sum() == state[:, :, 0].sum(), "Wrong update"
 
         # Calculate reward
-        time_reward = self.time_reward / (enable_agents if self.skip_disabled else self.n_agents)               # Time
+        # time_reward = self.time_reward / self.n_agents                                                          # Time
         covered = th.sum(state[:, :, 1])
-        reward = time_reward + self.new_cell_reward * new_cell                                                  # Cover
-        reward += enable[agent_id] * state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
-            (self.time_reward/(enable_agents) if enable_agents > 1 else -1)                                   # Threats 
+        # reward = time_reward + self.new_cell_reward * new_cell                                                  # Cover
+        # reward += enable[agent_id] * state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
+        #     (self.time_reward/(enable_agents) if enable_agents > 1 else -1)                                     # Threats 
 
         # Termination status
         terminated = (covered == self.n_cells) or (not sum(enable))
 
-        return reward, terminated
+        return 0, terminated
     
     """ back_update """
     def _back_update(self, batch, data, t, n_episodes):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
 
         r = self.action_order[:n_episodes]
-        for agent_id in r:
-            if data["enable"][0, agent_id] != self.prev_enable[agent_id]:
-                cell_status = ((data["agents"][0, r] == data["agents"][0, agent_id]).all(dim=1) * data["enable"][0, r]).any()
-                obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 1] = cell_status
+        for agent in r:
+            if data["enable"][0, agent] != self.prev_enable[agent]:
+                cell_status = ((data["agents"][0, r] == data["agents"][0, agent]).all(dim=1) * data["enable"][0, r]).any()
+                obs[data["agents"][0][agent, 0], data["agents"][0][agent, 1], 1] = cell_status
 
-            batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
-        
+        # Update the reward based on results
+        agent_id = self.action_order[n_episodes] # the agent we're updating
+        new_cell = 1 - obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 2]
+        enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
+
+        batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
+        batch["reward"][0, t, 0] += self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 3] * \
+            (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
+
+        # Update the termination status based on 
+        batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
+
         # assert obs[:, :, 1].sum() == data["enable"][0, self.action_order[:n_episodes]].sum() + self.prev_enable[self.action_order[n_episodes:]].sum(), "Wrong update"
         if self.t - t == 1:
             self.prev_enable = data["enable"][0].clone()
@@ -163,11 +173,7 @@ class AdvCoverage(BasicAM):
 
     def detect_interaction(self, data):
         # Only enabled agents take an action; if all disabled, arbitrary select 0 to get the terminated state
-        if self.skip_disabled:
-            enable = data["enable"][0]
-            return np.where(enable)[0] if any(enable) else np.array([0])
-        else:
-            return np.arange(self.n_agents)
+        return np.arange(self.n_agents)
 
     def _get_mcts_scheme(self, scheme, args):
         return {

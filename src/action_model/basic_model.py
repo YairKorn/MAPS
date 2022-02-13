@@ -30,7 +30,6 @@ class BasicAM():
         
         # Additional configuration attributes
         self.decomposed_reward = getattr(args, "decomposed_reward", False)
-        self.skip_disabled     = getattr(args, "skip_disabled", False)
         self.default_action    = getattr(args, "default_action", 0)
 
         # Unpack arguments from sacred
@@ -72,7 +71,7 @@ class BasicAM():
         # In case of stochastic environment, updating the previous observations based on the new observations...
         if self.stochastic_env and (not self.terminated) and (t_ep > 0):
             # ... iterate over agents to update the observation
-            for s in range(1, len(self.action_order)):
+            for s in range(0, len(self.action_order)):
                 self._back_update(self.batch, data, self.t-len(self.action_order)+s, s) # tensors share physical memory
         
         # If decomposed reward is false, re-distribute the reward equally between the agents
@@ -124,6 +123,7 @@ class BasicAM():
                     "obs": self.get_obs_agent(np.random.choice(self.n_agents))[0][0]
                 }, ts=self.t)
             if self.terminated and (not self.test_mode):
+                self.batch["filled"][0, th.where(self.batch["terminated"])[1][0]+1:] = 0
                 self.buffer.insert_episode_batch(self.batch)
 
     """ For a given agent return observation based on current possible states """

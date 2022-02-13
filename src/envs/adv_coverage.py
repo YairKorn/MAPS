@@ -246,8 +246,8 @@ class AdversarialCoverage(MultiAgentEnv):
     # Return the full state (privileged knowledge)
     def get_state(self):
         observation = self.grid.copy()
-        if not self.observe_ids: # remove agents' id from observation
-            observation[:, :, 0] = (observation[:, :, 0] != 0)
+        # if not self.observe_ids: # remove agents' id from observation
+        #     observation[:, :, 0] = (observation[:, :, 0] != 0)
         
         return observation.reshape(self.state_size)
 

@@ -19,6 +19,8 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         #$ TEST:
         self.bs = -1
         self.hidden_dic = th.zeros((args.batch_size, self.action_model.episode_limit * self.n_agents + 1, args.rnn_hidden_dim))
+        self.qvalue_dic = th.zeros((args.batch_size, self.action_model.episode_limit * self.n_agents + 1, self.action_model.n_actions))
+        self.obs_number = th.zeros((args.batch_size, self.action_model.episode_limit * self.n_agents + 1, 1))
 
     ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
@@ -27,7 +29,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
         #$ DEBUG: Reset logger - record all q-values during an episode
         if t_ep == 0:
-            # self.agent.eval() #! This is not debug
+            self.agent.eval() #! This is not debug
             self.logger = th.zeros((0, self.n_actions)) #$#$#$#$ I moved it before propagate hidden -> eval was set after training
             self.bs = (self.bs + (not test_mode)) % self.args.batch_size #$
             self.test = test_mode #$
@@ -36,7 +38,6 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:
             self._propagate_hidden(steps=len(self.cliques))
-        self.enable = state_data["enable"]
 
         # Detect interactions between agent, for selecting a joint action in these interactions
         self.cliques = self.action_model.detect_interaction(state_data)
@@ -45,6 +46,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
         # Array to store the chosen actions
         chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
+
         # MAPS core - runs the agents sequentially based on the chosen order
         for i in self.cliques:
             # get (pseudo-)observation batch from action model
@@ -59,6 +61,9 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
             with th.no_grad():
                 values, hidden_states = self.select_agent_action(inputs, data["hidden"])
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
+            if (not self.test) and self.action_model.t <= self.action_model.episode_limit * self.n_agents: #$ TEST
+                self.qvalue_dic[self.bs, self.action_model.t, :] = values.detach().view(self.action_model.n_actions)
+                self.obs_number[self.bs, self.action_model.t, :] = obs.shape[0]
 
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
@@ -87,6 +92,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().expand(batch_size, -1)
         
+        # Move calculations to CUDA (if available) only for learning phase
         new_device = self.action_model.device if batch_size > 1 else 'cpu'
         self.hidden_states = self.hidden_states.to(new_device)
         self.agent.to(new_device)

@@ -1,3 +1,4 @@
+from scipy.fftpack import diff
 import torch as th
 from .q_learner import QLearner
 from components.episode_buffer import EpisodeBatch
@@ -35,6 +36,11 @@ class TDnLearner(QLearner):
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
+        #$ TEST:
+        # single_obs = ((self.mac.obs_number[:, :300] * mask.cpu()) == 1)
+        # equal_obs  = th.unsqueeze((th.abs(self.mac.qvalue_dic[:, :300, :] - mac_out[:, :300, 0, :].to('cpu')) < 1e-6).any(dim=2), dim=2)
+        # diffs = th.where(th.logical_xor(single_obs, equal_obs))
+
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
 
@@ -43,6 +49,7 @@ class TDnLearner(QLearner):
         self.target_mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
             target_agent_outs = self.target_mac.forward(batch, t=t)
+            # test_dic[:, t, :] = self.target_mac.hidden_states.detach()
             target_mac_out.append(target_agent_outs)
 
         # We don't need the first timesteps Q-Value estimate for calculating targets

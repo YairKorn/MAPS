@@ -1,4 +1,5 @@
 import os, sys, json
+from turtle import color
 import numpy as np
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
@@ -63,7 +64,7 @@ def visualize(prefix, window=1, c=None):
         test_std = np.average(test_std, axis=0)
 
         plt.plot(test_time, test_mean, COLORS[0], label=pre)
-        plt.fill_between(test_time, test_mean - test_std, test_mean + test_std, alpha=.25)
+        plt.fill_between(test_time, test_mean - test_std, test_mean + test_std, color=COLORS[0], alpha=.25)
         COLORS.append(COLORS.pop(0))
 
     plt.title(prefix)

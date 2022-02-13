@@ -28,5 +28,4 @@ apply_MCTS: True              # if True, MCTS buffer is activated. Otherwise, a 
 MCTS_buffer_size: 16           # Size of MCTS buffer for stochastic environment
 MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"
 
-# Activate tests
-maps_test: False              # Set to be True by the tester
+internal_buffer_cuda: True    # Use CUDA for internal buffer to enhance performance

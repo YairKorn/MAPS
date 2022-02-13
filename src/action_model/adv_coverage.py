@@ -131,7 +131,7 @@ class AdvCoverage(BasicAM):
         covered = th.sum(state[:, :, 1])
         reward = time_reward + self.new_cell_reward * new_cell                                                  # Cover
         reward += enable[agent_id] * state[new_location[0], new_location[1], 2] * (self.n_cells - covered) * \
-            (self.time_reward/(enable_agents-1) if enable_agents > 1 else -1)                                   # Threats 
+            (self.time_reward/(enable_agents) if enable_agents > 1 else -1)                                   # Threats 
 
         # Termination status
         terminated = (covered == self.n_cells) or (not sum(enable))

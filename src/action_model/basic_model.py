@@ -11,7 +11,7 @@ class BasicAM():
         self.n_agents = args.n_agents
         self.n_actions = args.n_actions
         self.buffer_size = args.buffer_size
-        self.device = "cuda" if args.use_cuda else "cpu"
+        self.device = "cuda" if args.internal_buffer_cuda else "cpu"
 
         # Mechanisms for stochastic environment
         self.stochastic_env = stochastic        # Specified in env-specific action model
@@ -20,7 +20,7 @@ class BasicAM():
         self.MCTS_sampling = args.MCTS_sampling # size of sample every action selection
 
         mcts_buffer_size = args.MCTS_buffer_size if (self.stochastic_env and self.apply_MCTS) else 1
-        self.mcts_buffer = MCTSBuffer(self._get_mcts_scheme(scheme, args), mcts_buffer_size, device=self.device)
+        self.mcts_buffer = MCTSBuffer(self._get_mcts_scheme(scheme, args), mcts_buffer_size)
 
         # Episodes management (no need in general, but for compatability with PyMARL)
         self.t_env = 0              # real time of the environment

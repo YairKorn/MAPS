@@ -16,10 +16,22 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
         #! CUDA - how to move calcs to GPU
 
+        #$ TEST:
+        self.bs = -1
+        self.hidden_dic = th.zeros((args.batch_size, self.action_model.episode_limit * self.n_agents + 1, args.rnn_hidden_dim))
+
     ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
         state_data = self.action_model.update_state(ep_batch, t_ep, test_mode)
+
+        #$ DEBUG: Reset logger - record all q-values during an episode
+        if t_ep == 0:
+            # self.agent.eval() #! This is not debug
+            self.logger = th.zeros((0, self.n_actions)) #$#$#$#$ I moved it before propagate hidden -> eval was set after training
+            self.bs = (self.bs + (not test_mode)) % self.args.batch_size #$
+            self.test = test_mode #$
+            self.cliques = np.empty(0)
 
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:
@@ -30,11 +42,6 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         self.cliques = self.action_model.detect_interaction(state_data)
         if self.random_ordering:
             self.cliques = np.random.permutation(self.cliques)
-
-        #$ DEBUG: Reset logger - record all q-values during an episode
-        if t_ep == 0:
-            self.agent.eval() #! This is not debug
-            self.logger = th.zeros((0, self.n_actions))
 
         # Array to store the chosen actions
         chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
@@ -60,7 +67,6 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
             #$ DEBUG: Log q-values in the logger
             self.logger = th.cat((self.logger, th.squeeze(values, axis=1)), axis=0)
-        # del data, state_data
 
         return chosen_actions
 
@@ -80,6 +86,10 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
    
     def init_hidden(self, batch_size):
         self.hidden_states = self.agent.init_hidden().expand(batch_size, -1)
+        
+        new_device = self.action_model.device if batch_size > 1 else 'cpu'
+        self.hidden_states = self.hidden_states.to(new_device)
+        self.agent.to(new_device)
 
     # Used for training and propagating the hidden state in stochastic environment, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
@@ -92,6 +102,10 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
     def _propagate_hidden(self, steps):
         for s in range(steps, 0, -1):
             self.forward(self.action_model.batch, t=self.action_model.t-s)
+            #$ TEST
+            if (not self.test) and self.action_model.t-s <= self.action_model.episode_limit * self.n_agents:
+                self.hidden_dic[self.bs, self.action_model.t-s, :] = self.hidden_states.detach()
+
 
         # Update the MCTS buffer with the correct hidden state
         self.action_model.mcts_buffer.post_reset({

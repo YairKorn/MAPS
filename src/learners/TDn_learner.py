@@ -6,11 +6,12 @@ from components.episode_buffer import EpisodeBatch
 class TDnLearner(QLearner):
     def __init__(self, mac, scheme, logger, args):
         super().__init__(mac, scheme, logger, args)
- 
+        self.device = "cuda" if args.internal_buffer_cuda else "cpu" #! Specific to MAPS; consider generalizing
+
         # TD-n properties
         self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else 1 # TD-n default n=1 (Q-learning)
         self.TDn_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.TDn_bound-1)), \
-            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).view(-1, 1, 1, 1)
+            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
 
     """ An offline n-bound TD-lambda learner """
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
@@ -22,11 +23,15 @@ class TDnLearner(QLearner):
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
         avail_actions = batch["avail_actions"]
 
+        #$ TEST!!
+        # test_dic = th.zeros((self.mac.args.batch_size, self.mac.action_model.episode_limit * self.mac.n_agents + 1, self.mac.args.rnn_hidden_dim))
+
         # Calculate estimated Q-Values
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
             agent_outs = self.mac.forward(batch, t=t)
+            # test_dic[:, t, :] = self.mac.hidden_states.detach()
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
@@ -59,12 +64,12 @@ class TDnLearner(QLearner):
         targets = []
         ### Calculate TD-n, for 1...TDn_bound ##
         for n in range(1, self.TDn_bound+1):
-            reward_conv = th.nn.Conv1d(1, 1, n, bias=False, device=rewards.device)
-            reward_conv.weight.data = self.args.gamma ** th.arange(n).view(1, 1, -1) # th.ones((1, 1, n))
-            rewards_n = reward_conv(th.cat((rewards.reshape(batch.batch_size, 1, -1), th.zeros(batch.batch_size, 1, n-1)), axis=2))
+            reward_conv = th.nn.Conv1d(1, 1, n, bias=False)
+            reward_conv.weight.data = (self.args.gamma ** th.arange(n).view(1, 1, -1)).to(self.device)
+            rewards_n = reward_conv(th.cat((rewards.reshape(batch.batch_size, 1, -1), th.zeros((batch.batch_size, 1, n-1), device=self.device)), axis=2))
             rewards_n = rewards_n.reshape(batch.batch_size, -1, 1)
 
-            target_max_qvals_n = th.cat((target_max_qvals[:, n-1:], th.zeros((batch.batch_size, n-1, 1))), axis=1)
+            target_max_qvals_n = th.cat((target_max_qvals[:, n-1:], th.zeros((batch.batch_size, n-1, 1), device=self.device)), axis=1)
 
             # Mask "terminated"
             term_n = terminated.clone()

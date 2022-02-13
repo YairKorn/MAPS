@@ -8,7 +8,7 @@ def visualize(prefix, window=1, c=None):
     # list of file to plot on graph
     experiments = [x[0] for x in os.walk(os.path.join(os.getcwd(), 'results', 'sacred'))]    
     experiments = list(filter(lambda x: x.split('/')[-1].startswith(prefix), experiments))
-    labels = [x.split('/')[-1].replace(prefix + '_', '') for x in experiments]
+    labels = [x.split('/')[-1].replace(prefix + '#', '') for x in experiments]
 
     if c is None:
         c = labels

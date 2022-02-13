@@ -13,7 +13,7 @@ class MAPSLearner(TDnLearner):
         # TD-n properties
         self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else args.n_agents+1 # TD-n default n_agents+1
         self.TDn_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.TDn_bound-1)), \
-            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).view(-1, 1, 1, 1)
+            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
 
         print(f'### TDn Learner uses TD-1...{self.TDn_bound}, with weights: {self.TDn_weight[:, 0, 0, 0]}')
 

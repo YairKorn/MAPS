@@ -19,7 +19,7 @@ TDn_bound:                    # TD-lambda bound on n. null -> n_agents+1
 TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
 # MAPS-specific configuration
-random_ordering: False        # Re-order sequence of agents action-selection every step
+random_ordering: True         # Re-order sequence of agents action-selection every step
 decomposed_reward: True       # If True, use agent-specific reward from action model. Otherwise, use divide the joint reward between agents
 
 # Stoachstic Environment

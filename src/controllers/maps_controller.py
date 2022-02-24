@@ -14,7 +14,6 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         self.random_ordering = getattr(args, "random_ordering", True)
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
-        #! CUDA - how to move calcs to GPU
 
         #$ TEST:
         self.bs = -1
@@ -30,7 +29,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         #$ DEBUG: Reset logger - record all q-values during an episode
         if t_ep == 0:
             self.agent.eval() #! This is not debug
-            self.logger = th.zeros((0, self.n_actions)) #$#$#$#$ I moved it before propagate hidden -> eval was set after training
+            self.logger = th.zeros((0, self.n_actions))
             self.bs = (self.bs + (not test_mode)) % self.args.batch_size #$
             self.test = test_mode #$
             self.cliques = np.empty(0)
@@ -64,7 +63,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
             if (not self.test) and self.action_model.t <= self.action_model.episode_limit * self.n_agents: #$ TEST
                 self.qvalue_dic[self.bs, self.action_model.t, :] = values.detach().view(self.action_model.n_actions)
                 self.obs_number[self.bs, self.action_model.t, :] = obs.shape[0]
-
+ 
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment

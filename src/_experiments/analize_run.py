@@ -24,8 +24,7 @@ def plot_run(name):
     axs[0].plot(time, test_mean, color='red', label='reward')
     axs[0].fill_between(time, test_mean - test_std, test_mean + test_std, color='red', alpha=.25)
 
-
-    # ax2 = ax1.twinx()
+    time = np.asarray(data['loss_T'])
     for f, c in zip(fields, colors):
         dfield = np.asarray(data[f])
         axs[1].plot(time, dfield, color=c, label=f)
@@ -45,4 +44,4 @@ def make_parser():
 if __name__ == '__main__':
     args = make_parser().parse_args()
     plot_run(args.name)
-    # plot_run('Threat_7x7_Hard#MAPS3#2022-02-14-13:36:32')
+    # plot_run('Threat_7x7_Hard##MAPS*#2022-02-15-23:09:31')

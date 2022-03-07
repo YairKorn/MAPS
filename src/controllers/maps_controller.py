@@ -85,7 +85,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
     # Calculate q-values based on observation
     def select_agent_action(self, obs, hidden_states):
-        agent_outs, hidden_states = self.agent(obs, hidden_states.view(1, -1, self.args.rnn_hidden_dim))
+        agent_outs, _ = self.agent(obs, hidden_states.view(1, -1, self.args.rnn_hidden_dim))
         return agent_outs.view(1, obs.shape[0], -1), hidden_states
    
     def init_hidden(self, batch_size):
@@ -98,15 +98,21 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
     # Used for training and propagating the hidden state in stochastic environment, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
-        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
-        agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
+        if ep_batch.batch_size > 1 and t and not t%self.n_agents:
+            for s in range(t-self.n_agents, t):
+                agent_inputs = self._build_inputs(ep_batch["obs"][:, s], ep_batch, s).view(ep_batch.batch_size, -1)
+                agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
-        return agent_outs.view(ep_batch.batch_size, 1, -1)
+        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
+        agent_outs, hidden_states = self.agent(agent_inputs, self.hidden_states)
+        
+        return agent_outs.view(ep_batch.batch_size, 1, -1), hidden_states
+
 
     # Update the hidden state based on the real outcomes (rather than estimated outcomes as calculated during the sequential run)
     def _propagate_hidden(self, steps):
         for s in range(steps, 0, -1):
-            self.forward(self.action_model.batch, t=self.action_model.t-s)
+            _, self.hidden_states = self.forward(self.action_model.batch, t=self.action_model.t-s)
             #$ TEST
             if (not self.test) and self.action_model.t-s <= self.action_model.episode_limit * self.n_agents:
                 self.hidden_dic[self.bs, self.action_model.t-s, :] = self.hidden_states.detach()

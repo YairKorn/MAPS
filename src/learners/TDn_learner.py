@@ -31,7 +31,7 @@ class TDnLearner(QLearner):
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            agent_outs = self.mac.forward(batch, t=t)
+            agent_outs, _ = self.mac.forward(batch, t=t)
             # test_dic[:, t, :] = self.mac.hidden_states.detach()
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
@@ -48,7 +48,7 @@ class TDnLearner(QLearner):
         target_mac_out = []
         self.target_mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            target_agent_outs = self.target_mac.forward(batch, t=t)
+            target_agent_outs, _ = self.target_mac.forward(batch, t=t)
             # test_dic[:, t, :] = self.target_mac.hidden_states.detach()
             target_mac_out.append(target_agent_outs)
 

@@ -44,7 +44,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
             self.cliques = np.random.permutation(self.cliques)
 
         # Array to store the chosen actions
-        chosen_actions = th.ones((1, self.n_agents), dtype=th.int) * self.action_model.default_action
+        chosen_actions = th.zeros((1, self.n_agents), dtype=th.int)
 
         # MAPS core - runs the agents sequentially based on the chosen order
         for i in self.cliques:

@@ -30,7 +30,6 @@ class BasicAM():
         
         # Additional configuration attributes
         self.decomposed_reward = getattr(args, "decomposed_reward", False)
-        self.default_action    = getattr(args, "default_action", 0)
 
         # Unpack arguments from sacred
         if getattr(args, "env_args", None):

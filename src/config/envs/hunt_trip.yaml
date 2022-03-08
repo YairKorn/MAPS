@@ -1,0 +1,32 @@
+# A prey-predator environment, such that:
+#   1. Only one predator is needed to catch a prey, but the cost of predator's moves depend on the amount of captured preys
+
+env: "hunt_trip"            # a grid-world for adversarial coverage
+
+env_args:
+    random_seed: null       # defines np random seed for reproducability of tests
+
+    obstacles: False        # Obstacles in the grid map
+    map: null               # A specified setup obstacles in the environment
+ 
+    random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
+    obstacle_rate: 0.2      # ... percentage of the area contains obstacles
+    shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
+
+    observation_range: -1   # radius of observation, -1 means full observability
+    observe_ids: False      # observation includes agents' ids
+    observe_state: True     # whether an observation is only partial (False) or central including agent position (True)
+    watch_surface: True     # observe where obstacles and threat are located
+
+    allow_collisions: False # "True" allow two agents to be in the same cell
+    failure_prob: 0.0       # The probability of an action to fail. In that case, "stay" is executed
+
+    reward_hunt: 10.0       # positive reward for every cell covered (for the first time)
+    reward_carry: -0.2      # negative reward for carring a prey in the "bag", what make it heavier
+    reward_move: -0.4       # a cost of making a move
+    reward_stay: -0.1       # a lower cost for staying not making a move. When staying, "carry reward" does not rewarded
+
+    episode_limit: 100      # maximum number of time steps per episode
+
+t_max: 1500000              # number of time steps of the experiment
+

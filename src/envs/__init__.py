@@ -18,3 +18,6 @@ REGISTRY["stag_hunt"] = partial(env_fn, env=StagHunt)
 
 from .adv_coverage import AdversarialCoverage
 REGISTRY["mrac"] = partial(env_fn, env=AdversarialCoverage)
+
+from .hunt_trip import HuntingTrip
+REGISTRY["hunt_trip"] = partial(env_fn, env=HuntingTrip)

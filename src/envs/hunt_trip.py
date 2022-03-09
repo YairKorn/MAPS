@@ -49,14 +49,14 @@ class HuntingTrip(MultiAgentEnv):
         self.height, self.width = world_shape
         self.toroidal = getattr(args, "toroidal", False)
         self.allow_collisions = getattr(args, "allow_collisions", False)
-        self.n_agents = args.n_agents
-        self.n_preys  = args.n_preys
+        self.catch_validity = getattr(args, "catch_validity", False)
+        self.n_actors = np.asarray([args.n_agents, args.n_preys], dtype=np.int16)
         
         # Initialization
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
-        self.grid = np.zeros((self.height, self.width, 2), dtype=np.int16)
+        self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
         self.n_cells = self.grid[:, :, 0].size
-        # grid structure: agents [1] & preys [2] locations | surface
+        # grid structure: agents locations | preys locations | surface
         
         self.shuffle_config = getattr(args, "shuffle_config", False)
         self.obstacle_rate  = getattr(args, "obstacle_rate", 0.2)
@@ -90,58 +90,63 @@ class HuntingTrip(MultiAgentEnv):
         self.n_actions = 6 # 5 move directions + 1 catch action
         self.failure_prob = getattr(args, "failure_prob", 0.0)
         self.avail_actions = np.pad(self.grid[:, :, 1], 1, constant_values=(self.toroidal - 1))        
+        
+        self.actor_placement  = np.zeros((2, self.n_actors.max(), 2), dtype=np.int16)
+        self.random_placement = np.zeros(2, dtype=np.int16)
 
-        #! TILL HERE !# - 
-        #!  locating preys
-        #!  agents placement?
-        
-        #! NEED TO CHANGE: IF THE CONFIG ARRAY IS EMPTY, TURN ON THE RANDOM PLACEMENT, SEPERATELY FOR AGENTS & PREYS
-        self.random_placement = getattr(args, "random_placement", True) # random placements of the robots every episode, override "agent_placement"
-        placements = np.asarray(getattr(args, "agents_placement", []))   # otherwise, can select a specific setup
-        self.agents_placement = placements[:self.n_agents] if placements.size > 0 else self._calc_placement()
-        
-        # Sanity check for agents location
-        if not self.random_placement:
-            if self.agents_placement.shape[0] < self.n_agents:
-                raise ValueError("Failed to locate all agents in the grid")
-            if any(self.grid[self.agents_placement[:, 0], self.agents_placement[:, 1], 2] == -1):
-                raise ValueError("Agents cannot be located on obstacles, check out the configuration file")
+        # Set initial locations of actors
+        try:
+            for i, arg in zip(range(2), ["agents_placement", "preys_placement"]):
+                arr = np.asarray(getattr(args, arg, []))
+                if arr.size:        
+                    self.actor_placement[i, :self.n_actors[i]] = arr[:self.n_actors[i]]
+                else:
+                    self.random_placement[i] = 1
+        except:
+            raise "Failed to locate actors in environment, check configuration file"
+
+        #! Sanity check for actors location
+        # if (self.agents_placement.shape[0] and self.agents_placement.shape[0] < self.n_agents) or \
+        #     (self.preys_placement.shape[0] and self.preys_placement.shape[0] < self.n_agents):
+        #     raise ValueError("Failed to locate all actors in the grid")
+        # if any(self.grid[self.agents_placement[:, 0], self.agents_placement[:, 1], 1] == -1) or \
+        #     any(self.grid[self.preys_placement[:, 0], self.preys_placement[:, 1], 1] == -1):
+        #     raise ValueError("Actors cannot be located on obstacles, check out the configuration file")
 
         # Reward function
-        self.reward_hunt      = getattr(args, "reward_hunt", 10.0)
+        self.reward_hunt      = getattr(args, "reward_hunt", 11.0)
+        self.reward_catch     = getattr(args, "reward_catch", -1.0)
         self.reward_carry     = getattr(args, "reward_carry", -0.2)
         self.reward_move      = getattr(args, "reward_move", -0.4)
         self.reward_stay      = getattr(args, "reward_stay", -0.1)
         self.reward_collision = getattr(args, "reward_collision", 0.0)
 
         # Internal variables
-        self.agents = np.zeros(shape=(self.n_agents, 2), dtype=np.int16)
+        self.actors = np.zeros_like(self.actor_placement, dtype=np.int16)
+        self.prey_for_agent = np.zeros(self.n_actors[0], dtype=np.int16)
+        self.prey_available = np.ones(self.n_actors[1], dtype=np.int16)
+
+        # Array for calculating reward for moves
+        self.action_reward  = np.asarray([self.reward_move] * 4 + [self.reward_stay] + [self.reward_catch], dtype=np.float16)
+        
         self.steps = 0
         self.reset()
 
     ################################ Env Functions ################################
-    def reset(self, **kwargs):
-        # Reset old episodes - enable agents, clear grid, reset statistisc
-        self.agents_enabled.fill(1)
-        self.grid[:, :, 0:2].fill(0.0)
+    def reset(self):
+        # Reset old episodes - preys, grid & statistisc
+        self.prey_available.fill(1)
+        self.grid[:, :, :2].fill(0.0)
         self.steps = 0
 
-        # If "shuffle_config" mode in on, the area is changed every episode (obstacles and threats)
+        # If "shuffle_config" mode in on, the area is changed every episode (obstacles)
         if self.shuffle_config:
-            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
-            self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
-            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+            self.grid[:, :, 1] = self._place_obstacles(self.obstacle_rate)
+            self.obstacles = np.stack(np.where(self.grid[:, :, 1] == -1)).transpose()
 
-        # Place agents & set obstacles to marked as "covered"
-        self.agents = self._place_agents()
-        self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
-        self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
-        if self.obstacles.size > 0:
-            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
-
-        if kwargs:
-            self.test_mode = kwargs['test_mode']
-            self.nepisode  = kwargs['test_nepisode']
+        # Place agents & preys
+        for i in range(2):
+            self._place_actors(actor=i)
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
@@ -149,51 +154,38 @@ class HuntingTrip(MultiAgentEnv):
         actions = np.asarray(actions.cpu(), dtype=np.int16)
         if actions.size != self.n_agents:
             raise ValueError("Wrong number of actions")
-        actions[np.where(self.agents_enabled == 0)] = self.action_labels["stay"]  # mask actions of disabled agents (disabled -> stay)
         
-        # rewards for agents
-        reward = self.time_reward
+        # Randomly (w.p. failure_prob) an action fails
+        actions[np.where((np.random.random(self.n_actors[0]) < self.failure_prob) * (actions < 5))] = 4 #! CHECK
 
-        # Calculate theoretical new locations
-        new_locations, invalid_agents = self._enforce_validity(self.action_effect[actions] + self.agents)
-        reward += invalid_agents.size * self.invalid_reward
-
+        # Basic reward for actions: basic reward for actions + negative reward for carring preys
+        reward = self.action_reward[actions].sum() + self.reward_carry * (self.prey_for_agent * (actions != self.action_labels["stay"])).sum()
+        
         # Move the agents (avoid collision if allow_collision is False)
-        for agent in np.random.permutation(self.n_agents):
-            if not np.array_equal(new_locations[agent], self.agents[agent]): # the agent should move
-                new_cell, collision = self._move_agent(agent, new_locations[agent])
+        new_locations = self._enforce_validity(self.action_effect[actions] + self.actors[0, :self.n_actors[0]])
+        for agent in np.random.permutation(self.n_actors[0]):
+            collision = (not np.array_equal(new_locations[agent], self.actors[0, agent])) and self._move_actor(0, agent, new_locations[agent])
+            reward += collision * self.collision_reward
+
+            if actions[agent] == self.action_labels["catch"]:
+                adjacent_preys = ((self.actors[1] - new_locations[agent]).abs().sum(axis=1) <= 1) * (self.prey_available)
                 
-                # calculate reward for the step - includes whether or not a new cell covered & if collision occured
-                reward += new_cell * self.new_cell_reward + (collision is not None) * self.collision_reward
-
-        # Threats reward - indicate for the agents that they are in danger
-        e = np.where(self.agents_enabled == 1)[0] # enabled agents
-        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2])
-        covered = np.sum(self.grid[:, :, 1])
-        alive_agents = e.size
-
-        reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
-
-        # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
-        temp_agent_enabled = self.agents_enabled.copy()
-        self.agents_enabled *= threat_effect
-
-        d = temp_agent_enabled != self.agents_enabled # agents disabled right now are removed from the grid
-        self.grid[self.agents[d, 0], self.agents[d, 1], 0] = 0
-
-        mission_succes = np.sum(self.grid[:, :, 1]) == self.n_cells
-        reward += mission_succes * self.succes_reward
+                if adjacent_preys.sum():
+                    hunted_prey = np.random.choice(self.n_actors[1], p=adjacent_preys/adjacent_preys.sum()) # randomly select a prey to catch
+                    self.prey_available[hunted_prey] = 0   
+                    reward += self.reward_hunt
+        
+        # Move the preys (random in the grid)
+        preys_actions = np.random.choice(5, size=self.n_actors[1]) # 5 actions - 4 moves + stay, with uniform distribution
+        new_locations = self._enforce_validity(self.action_effect[preys_actions] * self.prey_available + self.actors[1, :self.n_actors[1]])
+        for prey in np.random.permutation(self.n_actors[1]):
+            collision = (not np.array_equal(new_locations[prey], self.actors[1, prey])) and self._move_actor(1, prey, new_locations[prey])
 
         self.steps += 1
 
-        # if the whole area was covered, or all agents are disabled, or episode limit was reached, end the episode
-        terminated = mission_succes or not np.sum(self.agents_enabled) or self.steps >= self.episode_limit
+        # if (all preys were caught) or (episode limit was reached), end the episode
+        terminated = (not np.sum(self.grid[:, :, 1])) or self.steps >= self.episode_limit
         info = {"episode_limit": self.steps >= self.episode_limit}
-
-        # Logging (only for test episodes, when logger is on)
-        if self.log_env and self.test_mode and terminated:
-            self._logger()
 
         return reward, terminated, info
 
@@ -203,22 +195,21 @@ class HuntingTrip(MultiAgentEnv):
 
     # Calculate the available actions for a specific agent
     def get_avail_agent_actions(self, agent):
-        if not self.agents_enabled[agent]:
-            avail_actions = np.array([False] * 4 + [True])
-        else:
-            next_location = self.agents[agent] + self.action_effect + 1 # avail_actions is padded
-            avail_actions = self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
+        next_location = self.agents[agent] + self.action_effect + 1 # avail_actions is padded
+        avail_actions = self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
 
+        if not self.allow_collisions:
             next_location = self.agents[agent] + avail_actions.reshape(-1, 1) * self.action_effect
             avail_actions = self.grid[next_location[:, 0], next_location[:, 1], 0] == 0
-            avail_actions[-1] = True
         
-        return avail_actions[:self.n_actions]
+        if self.catch_validity:
+            avail_actions[self.action_labels["catch"]] = (((self.actors[1] - self.actors[0, agent]).abs().sum(axis=1) <= 1) * (self.prey_available)).any()
+        avail_actions[self.action_labels["stay"]] = True
+        
+        return avail_actions
 
     def close(self):
-        if self.args.visualize:
-            self._visualize_learning(frame_rate=self.args.frame_rate)
-        print("Closing MRAC Environment")
+        print("Closing Hunting Trip Environment")
 
     ################################ Obs Functions ################################
     def get_obs(self):
@@ -227,25 +218,22 @@ class HuntingTrip(MultiAgentEnv):
 
     # Return the full state (privileged knowledge)
     def get_state(self):
-        observation = self.grid.copy()
-        # if not self.observe_ids: # remove agents' id from observation
-        #     observation[:, :, 0] = (observation[:, :, 0] != 0)
-        
-        return observation.reshape(self.state_size)
+        return (self.observe_state * self.grid.copy()).reshape(self.state_size)
 
     # There are 2 observation modes:
     #   1. Fully-observable (the whole area is observed) - observation_range = -1
     #   2. Partial-observability with absolute location (location of agent is marked on the map)
+    #   3. Partial-observability without absolute location
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
+        watch = np.unique([0, 1, 2 * self.watch_surface])
 
         # Observation-mode 1 - return the whole grid
         if self.observation_range < 0:
             observation = self.grid[:, :, watch].copy()
             agent_location = (self.agents[agent_id, 0], self.agents[agent_id, 1])
 
-        # Observation-mode 2 - return a (2*range + 1)x(2*range + 1) slice from the grid
+        # Observation-mode 2&3 - return a (2*range + 1)x(2*range + 1) slice from the grid
         else:
             d = 2*self.observation_range + 1
             observation = np.dstack((np.zeros((d, d)), np.ones((d, d)), -1*np.ones((d, d))))
@@ -286,32 +274,25 @@ class HuntingTrip(MultiAgentEnv):
         if self.toroidal:
             new_locations %= self.grid.shape[:2]
         else:
-            temp_loc = np.stack([np.maximum(np.minimum(new_locations[:, i], self.grid.shape[i] - 1), 0) for i in [0, 1]], axis=1)
-            agents_invalid = np.where(temp_loc != new_locations)[0]
-            new_locations = temp_loc
+            new_locations = np.stack([np.maximum(np.minimum(new_locations[:, i], self.grid.shape[i] - 1), 0) for i in [0, 1]], axis=1)
 
         # Enforce obstacle validity
         into_obstacle = np.where(self.grid[new_locations[:, 0], new_locations[:, 1], 2] == -1)[0]
         new_locations[into_obstacle] = self.agents[into_obstacle]
 
-        # return new locations & list of agents tried to preform invalid actions
-        return new_locations, np.concatenate((agents_invalid, into_obstacle))
+        return new_locations
 
 
-    def _move_agent(self, agent, new_location):
+    def _move_actor(self, a_type, a_id, new_location):
         # Check for collisions
-        if (not self.allow_collisions) and (self.grid[new_location[0], new_location[1], 0] != 0):
-            return False, np.asarray([agent, self.grid[new_location[0], new_location[1], 0] - 1])
+        if (not self.allow_collisions) and (self.grid[new_location[0], new_location[1], :(a_type+1)] != 0):
+            return True
         
-        # Move the agent
-        self.grid[self.agents[agent, 0], self.agents[agent, 1], 0] = 0.0
-        self.agents[agent] = new_location
-        self.grid[self.agents[agent, 0], self.agents[agent, 1], 0] = agent + 1.0
-        
-        # Mark the new cell as covered
-        new_cell = self.grid[self.agents[agent, 0], self.agents[agent, 1], 1] == 0.0
-        self.grid[self.agents[agent, 0], self.agents[agent, 1], 1] = 1.0
-        return new_cell, None
+        # Move the actors
+        self.grid[self.actors[a_type, a_id, 0], self.actors[a_type, a_id, 1], a_type] = 0.0
+        self.actors[a_type, a_id] = new_location
+        self.grid[self.actors[a_type, a_id, 0], self.actors[a_type, a_id, 1], a_type] = a_id * (1 - a_type) + 1.0
+        return False
 
     def _place_obstacles(self, obstacle_rate, num_trials=25):
         # Try to locate obstacles in the grid such that it remain reachable
@@ -343,15 +324,19 @@ class HuntingTrip(MultiAgentEnv):
             obstacle_rate *= 0.9 # reduce the obstacle rate because the current rate does not allow to create reachable environment
             print(f"INFO: Cannot create reachable environemnt, reduce obstacle rate to {obstacle_rate}")
 
-    def _place_agents(self):
-        # Random placement - select random free cells for initiating the agents
-        if self.random_placement:
-            avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells
-            l_cells = np.random.choice(self.n_cells, self.n_agents, replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
-            return np.stack((l_cells/self.width, l_cells%self.width)).transpose().astype(np.int16)
+    def _place_actors(self, actor):
+        # Calculate placement
+        if self.random_placement[actor]:
+            avail_cell = np.asarray((self.grid != 0).sum(axis=2) == 0, dtype=np.int16)
+            l_cells = np.random.choice(self.n_cells, self.n_actors[actor], replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
+            placement = np.stack((l_cells/self.width, l_cells%self.width)).transpose().astype(np.int16)
+        else:
+            placement = self.actor_placement[actor]
 
-        # Else, set the agents in the set placement (random placement override setted placements)
-        return self.agents_placement.copy()
+        # Locate actors in the grid and store their location
+        self.grid[placement[:self.n_actors[actor], 0], placement[:self.n_actors[actor], 1], actor] = \
+            (1 if actor else (np.arange(self.n_actors[actor]) + 1))
+        self.actors[actor, :self.n_actors[actor]] = placement
 
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid

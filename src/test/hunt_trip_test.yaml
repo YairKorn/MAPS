@@ -32,4 +32,3 @@ env_args:
     episode_limit: 100      # maximum number of time steps per episode
 
 t_max: 1500000              # number of time steps of the experiment
-

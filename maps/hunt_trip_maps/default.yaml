@@ -9,4 +9,3 @@ preys_placement:    []  # if random_placement is False, location can be specifie
 
 toroidal: False         # whether the world is bounded (False) or toroidal (True)
 world_shape: [10, 10]   # the shape of the grid-world [height, width]
-random_placement: True  # location of agents is randomized every episode

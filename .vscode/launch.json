@@ -47,7 +47,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=dcg",
-                "--env-config=adv_coverage",
+                "--env-config=hunt_trip",
                 "with",
                 "obs_agent_id=True",
                 "-d"

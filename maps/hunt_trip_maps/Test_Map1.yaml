@@ -1,0 +1,11 @@
+# A map for advarserial coverage environment
+
+n_agents: 4
+n_preys:  4
+
+obstacles_location: [[0, 1]]  # specified location of obstacles in the grid
+agents_placement:   [[0, 0], [4, 4], [4, 3], [2, 2]]  # if random_placement is False, location can be specified
+preys_placement:    [[2, 4], [4, 2], [0, 2], [2, 0]]  # if random_placement is False, location can be specified
+
+toroidal: False         # whether the world is bounded (False) or toroidal (True)
+world_shape: [5, 5]   # the shape of the grid-world [height, width]

@@ -1,11 +1,11 @@
-# A map for advarserial coverage environment
+# A map for hunting trip environment
 
 n_agents: 4
 n_preys:  8
 
 obstacles_location: []  # specified location of obstacles in the grid
-agents_placement:   []  # if random_placement is False, location can be specified
-preys_placement:    []  # if random_placement is False, location can be specified
+agents_placement:   []  # location can be specified, if empty - the location is randomized
+preys_placement:    []  # location can be specified, if empty - the location is randomized
 
 toroidal: False         # whether the world is bounded (False) or toroidal (True)
 world_shape: [10, 10]   # the shape of the grid-world [height, width]

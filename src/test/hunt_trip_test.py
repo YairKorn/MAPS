@@ -5,7 +5,7 @@ import torch as th
 # Correction of PYTOHNPATH for relative imports
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 from envs.hunt_trip import HuntingTrip
-from .test_utils import float_comprasion
+from test_utils import float_comprasion
 
 # TODO: Further test: 
 # - disabling of a robot
@@ -102,6 +102,7 @@ def test_e2e(rounds=100):
     for i in range(rounds):
         # Set seeds for debugging and reproducability
         args['random_seed'] = i
+        args['map'] = '5x5_Simple'
         np.random.seed = i
 
         # Select random values for simulator
@@ -116,6 +117,7 @@ def test_e2e(rounds=100):
         terminal_state = False
         while not terminal_state:
             actions = env.get_avail_actions()
+            assert int(env.grid[:, :, 0].sum()) == np.arange(env.n_actors[0] + 1).sum()
             actions = th.tensor([np.random.choice(env.n_actions, p=a/sum(a)) for a in actions])
             _, terminal_state, _ = env.step(actions)
         

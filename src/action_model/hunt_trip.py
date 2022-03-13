@@ -1,12 +1,11 @@
-from cgitb import enable
 import os, yaml
 import numpy as np
 import torch as th
 from .basic_model import BasicAM
 from collections import defaultdict
-MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
+MAP_PATH = os.path.join(os.getcwd(), 'maps', 'hunt_trip_maps')
 
-class AdvCoverage(BasicAM):
+class HuntingTrip(BasicAM):
     def __init__(self, scheme, args) -> None:
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
         env_map = os.path.join(MAP_PATH, (args.env_args["map"] if args.env_args["map"] is not None else 'default') + '.yaml')
@@ -18,7 +17,7 @@ class AdvCoverage(BasicAM):
         super().__init__(scheme, args, stochastic=True)
 
         # Basics of action model
-        self.action_effect = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0], [0, 0]], dtype=np.int16)
+        self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0], [0, 0]], dtype=th.int16)
         self.state_repr = defaultdict(lambda: ' ')
         for k ,v in [(-1.0, 'X'), (1.0, '+'), (3.0, '$'), (4.0, '$'), (2.0, '#')]:
             self.state_repr[k] = v
@@ -34,8 +33,10 @@ class AdvCoverage(BasicAM):
         self.reward_move      = getattr(args, "reward_move", -0.4)
         self.reward_stay      = getattr(args, "reward_stay", -0.1)
         self.reward_collision = getattr(args, "reward_collision", 0.0)
+        self.action_reward  = np.asarray([self.reward_move] * 4 + [self.reward_stay] + [self.reward_catch], dtype=np.float16)
 
         # Env-specific data structures
+        self.failure_prob   = getattr(args, "failure_prob", 0.0)
         self.prey_for_agent = np.zeros(args.n_agents, dtype=np.int16)
 
     """ When new perception is percepted, update the real state """
@@ -44,8 +45,12 @@ class AdvCoverage(BasicAM):
         data = self.mcts_buffer.sample(take_one=True)
  
         # Update state information
+        temp_agents = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
+        identities = state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
+
         data["state"][0] = state
-        data["agents"][0] = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
+        data["agents"][0][identities] = temp_agents
+        data["carried"][0] = state[data["agents"][0, :, 0], data["agents"][0, :, 1], 3].reshape(-1, 1)
 
         # When a new episode starts, reset internal data structures
         if not self.t:
@@ -93,6 +98,9 @@ class AdvCoverage(BasicAM):
         state, agents, result = data["state"], data["agents"], data["result"]
         agent_location = agents[agent_id, :].clone()
 
+        # Calculate reward based on the action
+        reward = self.action_reward[action]
+
         # No move is performed
         if (not avail_actions.view(-1)[action]):
             action = 4
@@ -105,53 +113,73 @@ class AdvCoverage(BasicAM):
             state[new_location[0], new_location[1], 0] = agent_id + 1.0
             agents[agent_id, :] = new_location
 
-        if action == 5:
-            pass
+        # Apply "catch" action; if result == 5 mean that catch fails (because there's no prey or failure probability)
+        if (action == 5) and (result < 5):
+            #! CHECK FOR VALIDITY SHOULD BE IN THE "ACTION RESULTS"
+            assert state[agent_location[0] + self.action_effect[result, 0], agent_location[1] + self.action_effect[result, 1], 1]
 
-        return 0, th.sum(state[:, :, 1] == 0)
+            state[agent_location[0] + self.action_effect[result, 0], agent_location[1] + self.action_effect[result, 1], 1] = 0
+            self.prey_for_agent[agent_id] += 1
+            reward += self.reward_hunt
+            #! KNOWN PROBLEM: may not know which agent really caught the prey...
+        
+        return reward, th.sum(state[:, :, 1]) == 0
     
     """ back_update """
     def _back_update(self, batch, data, t, n_episodes):
-        obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
+        pass
+        # obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
 
-        r = self.action_order[:n_episodes]
-        for agent in r:
-            if data["enable"][0, agent] != self.prev_enable[agent]:
-                cell_status = ((data["agents"][0, r] == data["agents"][0, agent]).all(dim=1) * data["enable"][0, r]).any()
-                obs[data["agents"][0][agent, 0], data["agents"][0][agent, 1], 1] = cell_status
+        # r = self.action_order[:n_episodes]
+        # for agent in r:
+        #     if data["enable"][0, agent] != self.prev_enable[agent]:
+        #         cell_status = ((data["agents"][0, r] == data["agents"][0, agent]).all(dim=1) * data["enable"][0, r]).any()
+        #         obs[data["agents"][0][agent, 0], data["agents"][0][agent, 1], 1] = cell_status
 
-        # Update the reward based on results
-        agent_id = self.action_order[n_episodes] # the agent we're updating
-        new_cell = 1 - obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 2]
-        enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
+        # # Update the reward based on results
+        # agent_id = self.action_order[n_episodes] # the agent we're updating
+        # new_cell = 1 - obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 2]
+        # enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
 
-        batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
-        batch["reward"][0, t, 0] += self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 3] * \
-            (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
+        # batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
+        # batch["reward"][0, t, 0] += self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 3] * \
+        #     (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
 
-        # Update the termination status based on 
-        batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
+        # # Update the termination status based on 
+        # batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
 
-        assert obs[:, :, 1].sum() == data["enable"][0, self.action_order[:n_episodes]].sum() + self.prev_enable[self.action_order[n_episodes:]].sum(), "Wrong update"
-        if self.t - t == 1:
-            self.prev_enable = data["enable"][0].clone()
-        return obs.reshape(-1)
+        # assert obs[:, :, 1].sum() == data["enable"][0, self.action_order[:n_episodes]].sum() + self.prev_enable[self.action_order[n_episodes:]].sum(), "Wrong update"
+        # if self.t - t == 1:
+        #     self.prev_enable = data["enable"][0].clone()
+        # return obs.reshape(-1)
 
     def _action_results(self, data, agent_id, action):
         # Possible action results depends on the threat in the new location
-        new_location = data["agents"][0, agent_id, :] + self.action_effect[action]
-        p = data["state"][0, new_location[0], new_location[1], 2] * data["enable"][0, agent_id]
-        return th.tensor([1.0-p, p] if p else [1.0])
+        if action < 4: # Move (but not "stay")
+            return th.tensor([1.0-self.failure_prob, self.failure_prob])
+        
+        if action == 5: # Catch - uniform distribution over the preys around and result=5 if no preys around
+            adj = data["agents"][0, agent_id, :] + self.action_effect[:5]
+
+            adjacent_preys = th.tensor([data["state"][0, v[0], v[1], 1] if \
+                (th.zeros(2) <= v).all() and (v < th.tensor([self.height, self.width])).all() else 0 for v in adj])
+
+            # adjacent_preys = data["state"][0, adj[:, 0], adj[:, 1], 1]
+            return th.tensor(adjacent_preys/adjacent_preys.sum() if adjacent_preys.sum() else [0] * 5 +[1], dtype=th.float32)
+        
+        return th.tensor([1.0]) # "Stay" always succeeds
+        
 
     def detect_interaction(self, data):
-        # Only enabled agents take an action; if all disabled, arbitrary select 0 to get the terminated state
         return np.arange(self.n_agents)
+
 
     def _get_mcts_scheme(self, scheme, args):
         return {
-            "state": ((self.height, self.width, 3), th.float32),
+            "state": ((self.height, self.width, 4), th.float32),
             "hidden": ((args.rnn_hidden_dim, ), th.float32),
             "agents": ((args.n_agents, 2), th.long),
+            "carried": ((args.n_agents, 1), th.long)
         }
 
     #$ DEBUG: plot a transition specified by time, including state, action, reward and new state
@@ -163,11 +191,11 @@ class AdvCoverage(BasicAM):
         print(f'Action: {action}\t Available Actions: {avail_actions}\t Reward: {reward}')
         
         state = self.buffer["obs"][bs, t, 0, :].reshape(self.height, self.width, -1)
-        state = (state[:, :, 1] * (1 - 3*state[:, :, 0]) + state[:, :, 2] + 8*(state[:, :, 3] == -1)).cpu().tolist()
+        state = (state[:, :, 0] + 2 * state[:, :, 1] + state[:, :, 2] + state[:, :, 3]).cpu().tolist()
         state = [[self.state_repr[e] for e in row] for row in state]
 
         new_state = self.buffer["obs"][bs, t+1, 0, :].reshape(self.height, self.width, -1)
-        new_state = (new_state[:, :, 1] * (1 - 3*new_state[:, :, 0]) + new_state[:, :, 2] + 8*(new_state[:, :, 3] == -1)).cpu().tolist()
+        new_state = (new_state[:, :, 0] + 2 * new_state[:, :, 1] + new_state[:, :, 2] + new_state[:, :, 3]).cpu().tolist()
         new_state = [[self.state_repr[e] for e in row] for row in new_state]
 
         for i in range(len(state)):

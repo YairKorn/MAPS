@@ -7,7 +7,7 @@ env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
     obstacles: False        # Obstacles in the grid map
-    map: null               # A specified setup obstacles in the environment
+    map: "5x5_Simple"       # A specified setup obstacles in the environment
  
     random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
@@ -25,10 +25,11 @@ env_args:
     reward_carry: -0.2      # negative reward for carring a prey in the "bag", what make it heavier
     reward_catch: -1.0      # a negative reward for catch (catching a prey is expensive, in case of succes, get additional reward for hunting)
     reward_collision: 0.0   # negative reward for collision
-    reward_hunt: 6.0        # succesfully hunting a prey
+    reward_hunt: 11.0       # positive reward for every cell covered (for the first time)
     reward_move: -0.4       # a cost of making a move
     reward_stay: -0.1       # a lower cost for staying not making a move. When staying, "carry reward" does not rewarded
 
     episode_limit: 100      # maximum number of time steps per episode
 
 t_max: 1500000              # number of time steps of the experiment
+

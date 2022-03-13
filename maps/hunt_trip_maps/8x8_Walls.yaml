@@ -1,0 +1,13 @@
+# A map for hunting trip environment
+
+n_agents: 5
+n_preys:  12
+
+obstacles_location: [
+  [1, 1], [2, 2], [5, 5], [6, 6], [1, 6], [2, 5], [5, 2], [6, 1]
+]  # specified location of obstacles in the grid
+agents_placement:   []  # location can be specified, if empty - the location is randomized
+preys_placement:    []  # location can be specified, if empty - the location is randomized
+
+toroidal: False         # whether the world is bounded (False) or toroidal (True)
+world_shape: [8, 8]   # the shape of the grid-world [height, width]

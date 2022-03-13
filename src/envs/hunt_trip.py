@@ -54,7 +54,7 @@ class HuntingTrip(MultiAgentEnv):
         
         # Initialization
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
-        self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
+        self.grid = np.zeros((self.height, self.width, 4), dtype=np.float16)
         self.n_cells = self.grid[:, :, 0].size
         # grid structure: agents locations | preys locations | surface
         
@@ -64,21 +64,22 @@ class HuntingTrip(MultiAgentEnv):
         # place obstacles in the area
         if not self.shuffle_config:
             if getattr(args, "random_config", False): # random configuration - only once
-                self.grid[:, :, 1] = self._place_obstacles(self.obstacle_rate)
-                self.obstacles = np.stack(np.where(self.grid[:, :, 1] == -1)).transpose()
+                self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+                self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
             else: # place ocnfiguration from configuration file
                 self.obstacles = np.asarray(getattr(args, "obstacles_location", []))
                 if self.obstacles.size > 0:
-                    self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = -1
+                    self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
 
         self.episode_limit = args.episode_limit
         
         # Observation properties
         self.observe_state = getattr(args, "observe_state", False)
         self.observe_ids = getattr(args, "observe_ids", False)
+        self.watch_carried = getattr(args, "watch_carried", True)
         self.watch_surface = getattr(args, "watch_surface", True)
         self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
-        self.n_features = 3 + self.watch_surface # changable features, does not includes the location
+        self.n_features = 3 + self.watch_surface + self.watch_carried # changable features, does not includes the location
         
         # For partial-observable environment, observation is r in each direction, resulting a (2r+1) square around the agent
         self.state_size = self.grid.size
@@ -89,7 +90,7 @@ class HuntingTrip(MultiAgentEnv):
         # Agents' action space
         self.n_actions = 6 # 5 move directions + 1 catch action
         self.failure_prob = getattr(args, "failure_prob", 0.0)
-        self.avail_actions = np.pad(self.grid[:, :, 1], 1, constant_values=(self.toroidal - 1))        
+        self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(self.toroidal - 1))        
         
         self.actor_placement  = np.zeros((2, self.n_actors.max(), 2), dtype=np.int16)
         self.random_placement = np.zeros(2, dtype=np.int16)
@@ -136,13 +137,15 @@ class HuntingTrip(MultiAgentEnv):
     def reset(self, **kwargs):
         # Reset old episodes - preys, grid & statistisc
         self.prey_available.fill(1)
+        self.prey_for_agent.fill(0)
         self.grid[:, :, :2].fill(0.0)
+        self.grid[:, :, 3].fill(0.0)
         self.steps = 0
 
         # If "shuffle_config" mode in on, the area is changed every episode (obstacles)
         if self.shuffle_config:
-            self.grid[:, :, 1] = self._place_obstacles(self.obstacle_rate)
-            self.obstacles = np.stack(np.where(self.grid[:, :, 1] == -1)).transpose()
+            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
 
         # Place agents & preys
         for i in range(2):
@@ -164,8 +167,12 @@ class HuntingTrip(MultiAgentEnv):
         # Move the agents (avoid collision if allow_collision is False)
         new_locations = self._enforce_validity(0, self.action_effect[actions] + self.actors[0, :self.n_actors[0]])
         for agent in np.random.permutation(self.n_actors[0]):
-            collision = (not np.array_equal(new_locations[agent], self.actors[0, agent])) and self._move_actor(0, agent, new_locations[agent])
-            reward += collision * self.reward_collision
+            if not np.array_equal(new_locations[agent], self.actors[0, agent]):
+                self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] = 0
+                collision = self._move_actor(0, agent, new_locations[agent])
+                self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] = self.prey_for_agent[agent]
+
+                reward += collision * self.reward_collision
 
             if actions[agent] == self.action_labels["catch"]:
                 adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
@@ -173,6 +180,7 @@ class HuntingTrip(MultiAgentEnv):
                 if adjacent_preys.sum():
                     hunted_prey = np.random.choice(self.n_actors[1], p=adjacent_preys/adjacent_preys.sum()) # randomly select a prey to catch
                     self.grid[self.actors[1, hunted_prey, 0], self.actors[1, hunted_prey, 1], 1] = 0
+                    self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] += 1
                     self.prey_for_agent[agent] += 1
                     self.prey_available[hunted_prey] = 0
                     
@@ -182,7 +190,8 @@ class HuntingTrip(MultiAgentEnv):
         preys_actions = self.action_effect[np.random.choice(5, size=self.n_actors[1])] * self.prey_available.reshape(-1, 1) # 5 actions - 4 moves + stay, with uniform distribution
         new_locations = self._enforce_validity(1, preys_actions + self.actors[1, :self.n_actors[1]])
         for prey in np.random.permutation(self.n_actors[1]):
-            collision = (not np.array_equal(new_locations[prey], self.actors[1, prey])) and self._move_actor(1, prey, new_locations[prey])
+            if not np.array_equal(new_locations[prey], self.actors[1, prey]):
+                self._move_actor(1, prey, new_locations[prey])
 
         self.steps += 1
 
@@ -228,7 +237,7 @@ class HuntingTrip(MultiAgentEnv):
     #   3. Partial-observability without absolute location
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique([0, 1, 2 * self.watch_surface])
+        watch = np.unique([0, 1, 2 * self.watch_surface, 3 * self.watch_carried])
 
         # Observation-mode 1 - return the whole grid
         if self.observation_range < 0:

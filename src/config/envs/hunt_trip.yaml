@@ -20,8 +20,9 @@ env_args:
     watch_surface: True     # observe where obstacles and threat are located
 
     allow_collisions: False # "True" allow two agents to be in the same cell
-    failure_prob: 0.0       # The probability of an action to fail. In that case, "stay" is executed
     catch_validity: False   # Allow agents to select "catch" action only when adjacent to a prey
+    failure_prob: 0.0       # The probability of an action to fail. In that case, "stay" is executed
+    directed_catch: True    # There are 5 "catch" actions, each for each side, rather than one action
 
     reward_carry: -0.2      # negative reward for carring a prey in the "bag", what make it heavier
     reward_catch: -1.0      # a negative reward for catch (catching a prey is expensive, in case of succes, get additional reward for hunting)

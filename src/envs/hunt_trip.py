@@ -88,8 +88,9 @@ class HuntingTrip(MultiAgentEnv):
         #! Should I give an option for exact loaction?
 
         # Agents' action space
-        self.n_actions = 6 # 5 move directions + 1 catch action
         self.failure_prob = getattr(args, "failure_prob", 0.0)
+        self.directed_catch = getattr(args, "directed_catch", True)
+        self.n_actions = 6 + 4 * self.directed_catch # 5 move directions + (1 or 5) catch actions
         self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(self.toroidal - 1))        
         
         self.actor_placement  = np.zeros((2, self.n_actors.max(), 2), dtype=np.int16)
@@ -174,18 +175,23 @@ class HuntingTrip(MultiAgentEnv):
 
                 reward += collision * self.reward_collision
 
-            if actions[agent] == self.action_labels["catch"]:
-                adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
+            # "catch" label is 5 (if not directed_catch) or 5..9 (if directed_catch)
+            if actions[agent] >= self.action_labels["catch"]:
+                if self.directed_catch:
+                    pass
+
+                else:
+                    adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
                 
-                if adjacent_preys.sum():
-                    hunted_prey = np.random.choice(self.n_actors[1], p=adjacent_preys/adjacent_preys.sum()) # randomly select a prey to catch
-                    self.grid[self.actors[1, hunted_prey, 0], self.actors[1, hunted_prey, 1], 1] = 0
-                    self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] += 1
-                    self.prey_for_agent[agent] += 1
-                    self.prey_available[hunted_prey] = 0
-                    
-                    reward += self.reward_hunt
-        
+                    if adjacent_preys.sum():
+                        hunted_prey = np.random.choice(self.n_actors[1], p=adjacent_preys/adjacent_preys.sum()) # randomly select a prey to catch
+                        self.grid[self.actors[1, hunted_prey, 0], self.actors[1, hunted_prey, 1], 1] = 0
+                        self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] += 1
+                        self.prey_for_agent[agent] += 1
+                        self.prey_available[hunted_prey] = 0
+                        
+                        reward += self.reward_hunt
+            
         # Move the preys (random in the grid)
         preys_actions = self.action_effect[np.random.choice(5, size=self.n_actors[1])] * self.prey_available.reshape(-1, 1) # 5 actions - 4 moves + stay, with uniform distribution
         new_locations = self._enforce_validity(1, preys_actions + self.actors[1, :self.n_actors[1]])

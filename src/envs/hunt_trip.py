@@ -25,7 +25,9 @@ MAP_PATH = os.path.join(os.getcwd(), 'maps', 'hunt_trip_maps')
 class HuntingTrip(MultiAgentEnv):
 
     action_labels = {'right': 0, 'down': 1, 'left': 2, 'up': 3, 'stay': 4, 'catch': 5}
-    action_effect = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0], [0, 0]], dtype=np.int16)
+    # directed catch labels: catch_right: 5, catch_down: 6, catch_left: 7, catch_up: 8, catch_in_place: 9
+    action_effect = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=np.int16)
+    catch_order   = np.asarray([[0, 0], [0, 1], [1, 0], [0, -1], [-1, 0]], dtype=np.int16)
 
     def __init__(self, **kwargs):
         # Unpack arguments from sacred
@@ -91,6 +93,7 @@ class HuntingTrip(MultiAgentEnv):
         self.failure_prob = getattr(args, "failure_prob", 0.0)
         self.directed_catch = getattr(args, "directed_catch", True)
         self.n_actions = 6 + 4 * self.directed_catch # 5 move directions + (1 or 5) catch actions
+        self.action_effect = np.concatenate((self.action_effect, np.zeros((1 + 4 * self.directed_catch, 2), dtype=np.int16)), axis=0)
         self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(self.toroidal - 1))        
         
         self.actor_placement  = np.zeros((2, self.n_actors.max(), 2), dtype=np.int16)
@@ -129,7 +132,7 @@ class HuntingTrip(MultiAgentEnv):
         self.prey_available = np.ones(self.n_actors[1], dtype=np.int16)
 
         # Array for calculating reward for moves
-        self.action_reward  = np.asarray([self.reward_move] * 4 + [self.reward_stay] + [self.reward_catch], dtype=np.float16)
+        self.action_reward  = np.asarray([self.reward_move] * 4 + [self.reward_stay] + (1 + 4 * self.directed_catch) * [self.reward_catch], dtype=np.float16)
         
         self.steps = 0
         self.reset()
@@ -158,12 +161,12 @@ class HuntingTrip(MultiAgentEnv):
         actions = np.asarray(actions.cpu(), dtype=np.int16)
         if actions.size != self.n_actors[0]:
             raise ValueError("Wrong number of actions")
-        
-        # Randomly (w.p. failure_prob) an action fails
-        actions[np.where((np.random.random(self.n_actors[0]) < self.failure_prob) * (actions < 5))] = 4 #! CHECK
 
         # Basic reward for actions: basic reward for actions + negative reward for carring preys
         reward = self.action_reward[actions].sum() + self.reward_carry * (self.prey_for_agent * (actions != self.action_labels["stay"])).sum()
+        
+        # Randomly (w.p. failure_prob) an action fails
+        actions[np.where((np.random.random(self.n_actors[0]) < self.failure_prob) * (actions < 5))] = 4 #! CHECK & FAIL CATCH TOO
         
         # Move the agents (avoid collision if allow_collision is False)
         new_locations = self._enforce_validity(0, self.action_effect[actions] + self.actors[0, :self.n_actors[0]])
@@ -175,29 +178,31 @@ class HuntingTrip(MultiAgentEnv):
 
                 reward += collision * self.reward_collision
 
-            # "catch" label is 5 (if not directed_catch) or 5..9 (if directed_catch)
             if actions[agent] >= self.action_labels["catch"]:
-                if self.directed_catch:
-                    pass
+                prey_loc = self._select_prey(actions[agent], self.actors[0, agent])
 
-                else:
-                    adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
-                
-                    if adjacent_preys.sum():
-                        hunted_prey = np.random.choice(self.n_actors[1], p=adjacent_preys/adjacent_preys.sum()) # randomly select a prey to catch
-                        self.grid[self.actors[1, hunted_prey, 0], self.actors[1, hunted_prey, 1], 1] = 0
-                        self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] += 1
-                        self.prey_for_agent[agent] += 1
-                        self.prey_available[hunted_prey] = 0
-                        
-                        reward += self.reward_hunt
+                if prey_loc is not None:
+                    # Find the hunted prey
+                    hunted_prey = np.where((np.absolute(self.actors[1] - prey_loc).sum(axis=1) == 0))[0]
+
+                    # Update the state
+                    self.grid[prey_loc[0], prey_loc[1], 1] = 0
+                    self.grid[self.actors[0, agent, 0], self.actors[0, agent, 1], 3] += 1
+                    
+                    # Update internal variables
+                    self.prey_for_agent[agent] += 1
+                    self.prey_available[hunted_prey] = 0
+                    
+                    reward += self.reward_hunt                
+
+                # adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
             
         # Move the preys (random in the grid)
         preys_actions = self.action_effect[np.random.choice(5, size=self.n_actors[1])] * self.prey_available.reshape(-1, 1) # 5 actions - 4 moves + stay, with uniform distribution
         new_locations = self._enforce_validity(1, preys_actions + self.actors[1, :self.n_actors[1]])
         for prey in np.random.permutation(self.n_actors[1]):
             if not np.array_equal(new_locations[prey], self.actors[1, prey]):
-                self._move_actor(1, prey, new_locations[prey])
+                self._move_actor(1, prey, new_locations[prey]) #! THERE'S A PROBLEM HERE!
 
         self.steps += 1
 
@@ -216,12 +221,18 @@ class HuntingTrip(MultiAgentEnv):
         next_location = self.actors[0, agent] + self.action_effect + 1 # avail_actions is padded
         avail_actions = self.avail_actions[next_location[:, 0], next_location[:, 1]] != -1
 
+        # enforce validity of catch actions, if configured
+        if self.catch_validity:
+            prey_location = self.actors[0, agent] + self.action_effect[:5] * avail_actions[:5].reshape(-1, 1)
+            prey_available = self.grid[prey_location[:, 0], prey_location[:, 1], 1] * avail_actions[:5]
+            if self.directed_catch:
+                avail_actions[self.action_labels["catch"]:] = prey_available
+            else:
+                avail_actions[self.action_labels["catch"]] = (prey_available.sum() > 0)    
+        
         if not self.allow_collisions:
             next_location = self.actors[0, agent] + avail_actions.reshape(-1, 1) * self.action_effect
             avail_actions[:4] = self.grid[next_location[:4, 0], next_location[:4, 1], 0] == 0
-        
-        if self.catch_validity:
-            avail_actions[self.action_labels["catch"]] = (((self.actors[1] - self.actors[0, agent]).abs().sum(axis=1) <= 1) * (self.prey_available)).any()
         
         return avail_actions
 
@@ -306,10 +317,35 @@ class HuntingTrip(MultiAgentEnv):
 
         return new_locations
 
+    def _select_prey(self, action, cell):
+        # Directed catch - check if there is a prey in the desired cell
+        if self.directed_catch:
+            test_loc = cell + self.action_effect[action - 5]
+            if self.toroidal: 
+                test_loc %= self.grid.shape[:2]
+            elif np.min(test_loc) < 0 or test_loc[0] >= self.grid.shape[0] or test_loc[1] >= self.grid.shape[1]:
+                return None
+            
+            if self.grid[test_loc[0], test_loc[1], 1]:
+                return test_loc
+
+        # Non-directed catch - select by catch_order
+        else:
+            for i in self.catch_order:
+                test_loc = cell + i
+                if self.toroidal:
+                    test_loc %= self.grid.shape[:2]
+                elif np.min(test_loc) < 0 or test_loc[0] >= self.grid.shape[0] or test_loc[1] >= self.grid.shape[1]:
+                    continue
+                
+                if self.grid[test_loc[0], test_loc[1], 1]:
+                    return test_loc
+        return None
+
 
     def _move_actor(self, a_type, a_id, new_location):
         # Check for collisions
-        if (not self.allow_collisions) and (self.grid[new_location[0], new_location[1], :(a_type+1)] != 0).all():
+        if (not self.allow_collisions) and (self.grid[new_location[0], new_location[1], :(a_type+1)] != 0).any():
             return True
         
         # Move the actors

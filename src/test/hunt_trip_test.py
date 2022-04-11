@@ -102,7 +102,7 @@ def test_e2e(rounds=100):
     for i in range(rounds):
         # Set seeds for debugging and reproducability
         args['random_seed'] = i
-        args['map'] = '5x5_Simple'
+        args['map'] = 'Hunt_5x5_Simple'
         np.random.seed = i
 
         # Select random values for simulator

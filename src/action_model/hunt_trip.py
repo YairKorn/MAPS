@@ -48,6 +48,8 @@ class HuntingTrip(BasicAM):
 
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
+        # if self.t == 0:
+        #     self.prey_for_agent *= 0
         state = state.reshape(self.height, self.width, -1)
         data = self.mcts_buffer.sample(take_one=True)
  
@@ -59,6 +61,9 @@ class HuntingTrip(BasicAM):
         data["agents"][0][identities] = temp_agents
         data["carried"][0] = state[data["agents"][0, :, 0], data["agents"][0, :, 1], 3].reshape(-1, 1)
 
+        if self.t > 0 and not (data["carried"][0].view(-1) == self.prey_for_agent).all():
+            print(f"Real: {data['carried'].view(-1)}, Assumed: {self.prey_for_agent}")
+        self.prey_for_agent = data["carried"][0].view(-1)
         return data
     
     """ Use the general state to create an observation for the agents """

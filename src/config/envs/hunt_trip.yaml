@@ -7,7 +7,7 @@ env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
     obstacles: False        # Obstacles in the grid map
-    map: "Hunt_5x5_Simple"       # A specified setup obstacles in the environment
+    map: "Hunt_8x8_Walls"       # A specified setup obstacles in the environment
  
     random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
@@ -20,7 +20,7 @@ env_args:
     watch_surface: True     # observe where obstacles and threat are located
 
     allow_collisions: False # "True" allow two agents to be in the same cell
-    catch_validity: False   # Allow agents to select "catch" action only when adjacent to a prey
+    catch_validity: True    # Allow agents to select "catch" action only when adjacent to a prey
     directed_catch: True    # Agents should specify in which direction their prey is, in order to catch it
     failure_prob: 0.0       # The probability of an action to fail. In that case, "stay" is executed
 

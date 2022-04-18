@@ -1,5 +1,5 @@
 import numpy as np
-import os
+import os, platform
 import collections
 from os.path import dirname, abspath
 from copy import deepcopy
@@ -14,7 +14,7 @@ import yaml
 
 from run import run
 
-SETTINGS['CAPTURE_MODE'] = "fd" # set to "no" if you want to see stdout/stderr in console
+SETTINGS['CAPTURE_MODE'] = "sys" if platform.system() == "Windows" else "fd" # set to "no" if you want to see stdout/stderr in console
 logger = get_logger()
 
 ex = Experiment('pymarl')

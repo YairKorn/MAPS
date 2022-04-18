@@ -111,11 +111,12 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
     # Update the hidden state based on the real outcomes (rather than estimated outcomes as calculated during the sequential run)
     def _propagate_hidden(self, steps):
+        #$ TEST
+        if (not self.test) and self.action_model.t <= self.action_model.episode_limit * self.n_agents:
+            # self.hidden_dic[self.bs, self.action_model.t-s, :] = self.hidden_states.detach()
+            self.hidden_dic[self.bs, (self.action_model.t-self.n_agents):self.action_model.t, :] = self.hidden_states.detach()
         for s in range(steps, 0, -1):
             _, self.hidden_states = self.forward(self.action_model.batch, t=self.action_model.t-s)
-            #$ TEST
-            if (not self.test) and self.action_model.t-s <= self.action_model.episode_limit * self.n_agents:
-                self.hidden_dic[self.bs, self.action_model.t-s, :] = self.hidden_states.detach()
 
 
         # Update the MCTS buffer with the correct hidden state

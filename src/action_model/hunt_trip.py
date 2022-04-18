@@ -42,14 +42,13 @@ class HuntingTrip(BasicAM):
 
         # Env-specific data structures
         self.failure_prob   = getattr(self.args, "failure_prob", 0.0)
-        self.prey_for_agent = th.zeros(self.n_agents, dtype=th.int16) #! CONSIDER REMOVE?
+        self.catch_validity = getattr(self.args, "catch_validity", False)
+        self.prey_for_agent = th.zeros(self.n_agents, dtype=th.int16)
 
         self.intended_locs = th.zeros((self.n_agents, 2), dtype=th.int16)
 
     """ When new perception is percepted, update the real state """
     def _update_env_state(self, state):
-        # if self.t == 0:
-        #     self.prey_for_agent *= 0
         state = state.reshape(self.height, self.width, -1)
         data = self.mcts_buffer.sample(take_one=True)
  
@@ -61,8 +60,31 @@ class HuntingTrip(BasicAM):
         data["agents"][0][identities] = temp_agents
         data["carried"][0] = state[data["agents"][0, :, 0], data["agents"][0, :, 1], 3].reshape(-1, 1)
 
-        if self.t > 0 and not (data["carried"][0].view(-1) == self.prey_for_agent).all():
-            print(f"Real: {data['carried'].view(-1)}, Assumed: {self.prey_for_agent}")
+        prey_mismatch = th.where(data["carried"][0].view(-1) != self.prey_for_agent)[0]
+        if self.t > 0 and prey_mismatch.numel():
+            print(f"Test: {self.test_mode}\tTime: {self.t}\tReal: {data['carried'].view(-1)}, Assumed: {self.prey_for_agent}")
+
+            # Correction for preys is calculated only for directed catch    
+            if self.directed_catch:
+                # Calculate who succeed to catch a prey
+                success_catch = th.where(data["carried"][0].view(-1) > self.prey_for_agent)[0]
+                failed_catch  = th.where(data["carried"][0].view(-1) < self.prey_for_agent)[0]
+                ind_mismatch  = th.tensor([self.action_order.index(p) for p in success_catch])
+
+                # Calculate where the preys are
+                catch_actions = self.batch["actions"][0, (self.t - self.n_agents):self.t, 0, 0][ind_mismatch]
+                prey_cell = data["agents"][0, success_catch] + self.action_effect[catch_actions - 5]            
+
+                # Store relevant data for back-update the catches
+                self.correction_data = {
+                    "success": success_catch,
+                    "failed" : failed_catch,
+                    "indices": ind_mismatch,
+                    "cells"  : prey_cell
+                }
+        else:
+            self.correction_data = {}
+
         self.prey_for_agent = data["carried"][0].view(-1)
         return data
     
@@ -98,6 +120,23 @@ class HuntingTrip(BasicAM):
         new_loc = data["agents"][0, agent_id] + self.action_effect * avail_actions.transpose(0, 1).cpu()
         no_collision = (data["state"][0, new_loc[:, 0], new_loc[:, 1], 0] != 0) * \
             (data["state"][0, new_loc[:, 0], new_loc[:, 1], 0] != (agent_id + 1))
+        
+        # enforce validity of catch actions, if configured
+        if self.catch_validity:
+            prey_location = data["agents"][0, agent_id] + self.action_effect[:5]
+            prey_available = th.tensor([avail_actions[0, i] and data["state"][0, prey_location[i-5, 0], prey_location[i-5, 1], 1] for i in range(5, self.n_actions)])
+            if self.directed_catch:
+                avail_actions[0, 5:] = prey_available
+
+                # #$ DEBUG
+                # for i in range(5):
+                #     new_new = data["agents"][0, agent_id] + self.action_effect[i]
+                #     if th.min(new_new) >= 0 and th.max(new_new) < 7:
+                #         assert avail_actions[0, 5+i] == data["state"][0, new_new[0], new_new[1], 1]
+
+            else:
+                avail_actions[5] = (prey_available.sum() > 0)    
+        
         return avail_actions * (~ no_collision)
 
 
@@ -113,16 +152,16 @@ class HuntingTrip(BasicAM):
         if (not avail_actions.view(-1)[action]):
             action = 4
 
+        # Update the intended location of the agent
+        new_location = (agent_location + self.action_effect[action]) % th.tensor(state.shape[:2])
+        self.intended_locs[agent_id] = new_location # keep the intended location of the agent
+        
         # Apply agent movement
-        if action < 5:
-            new_location = (agent_location + self.action_effect[action]) % th.tensor(state.shape[:2])
-            self.intended_locs[agent_id] = new_location # keep the intended location of the agent
+        if action < 5 and result == 0: # if move succeed (result == 0), update the state
+            state[agent_location[0], agent_location[1], 0] = 0.0
 
-            if result == 0: # if move succeed (result == 0), update the state
-                state[agent_location[0], agent_location[1], 0] = 0.0
-
-                state[new_location[0], new_location[1], 0] = agent_id + 1.0
-                agents[agent_id, :] = new_location
+            state[new_location[0], new_location[1], 0] = agent_id + 1.0
+            agents[agent_id, :] = new_location
 
         # Apply "catch" action
         if (action > 4) and (result == 0):
@@ -141,20 +180,37 @@ class HuntingTrip(BasicAM):
     def _back_update(self, batch, data, t, n_episodes):
         obs = batch["obs"][0, t, 0, :].view(self.height, self.width, -1)
 
-        r = self.action_order[:n_episodes]
-        for agent in r:
-            if (data["agents"][0, agent] != self.intended_locs[agent]).all():
-                obs[data["agents"][0, agent, 0], data["agents"][0, agent, 1], 1] = 1    # return the agent to its previous location
-                obs[self.intended_locs[agent, 0], self.intended_locs[agent, 1], 1] = (data["agents"][0, r] == data["agents"][0, agent]).all(dim=1).any()
+        # If there's a mismatch in preys distribution among agents, update the true values
+        if self.correction_data:
+            if not self.test_mode:
+                print(f"Correction in: Episode {self.buffer.buffer_index}, Time: {t}")
 
-        # # Update the reward based on results
-        # agent_id = self.action_order[n_episodes] # the agent we're updating
-        # new_cell = 1 - obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 2]
-        # enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
 
-        # batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
-        # batch["reward"][0, t, 0] += self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 3] * \
-        #     (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
+            for p in range(self.correction_data["indices"].numel()):
+                prey_cell = self.correction_data["cells"][p]
+                obs[prey_cell[0], prey_cell[1], 2] = n_episodes <= self.correction_data["indices"][p]
+
+            for fail_agent in self.correction_data["failed"]:
+                agent_cell = data["agents"][0, fail_agent]
+                obs[agent_cell[0], agent_cell[1], 4] = data["carried"][0, fail_agent]
+
+            for i in range(self.correction_data["indices"].numel()):
+                succ_agent = self.correction_data["success"][i]
+                agent_cell = data["agents"][0, succ_agent]
+                obs[agent_cell[0], agent_cell[1], 4] = data["carried"][0, succ_agent] - 1*(n_episodes <= self.correction_data["indices"][i])
+
+            # Update reward
+            if self.action_order[n_episodes] in self.correction_data["failed"]:
+                batch["reward"][0, t, 0] -= self.reward_hunt
+            elif self.action_order[n_episodes] in self.correction_data["success"]:
+                batch["reward"][0, t, 0] += self.reward_hunt
+
+        if self.failure_prob:
+            r = self.action_order[:n_episodes]
+            for agent in r:
+                if (data["agents"][0, agent] != self.intended_locs[agent]).any():
+                    obs[data["agents"][0, agent, 0], data["agents"][0, agent, 1], 1] = 1    # return the agent to its previous location
+                    obs[self.intended_locs[agent, 0], self.intended_locs[agent, 1], 1] = (data["agents"][0, r] == data["agents"][0, agent]).all(dim=1).any()
 
         # # Update the termination status based on 
         # batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))

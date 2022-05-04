@@ -36,6 +36,16 @@ class TDnLearner(QLearner):
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
+        #$ #$ #$ QVALUES TEST $# $# $#
+        calc_qvalues = mac_out[:, :-1, 0, 6].cpu()
+        targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
+
+        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
+        print(calc_qvalues[0])
+
+
+        #$ #$ #$   TILL HERE   $# $# $#
+
         #$ TEST:
         # single_obs = ((self.mac.obs_number[:, :300] * mask.cpu()) == 1)
         # equal_obs  = th.unsqueeze((th.abs(self.mac.qvalue_dic[:, :300, :] - mac_out[:, :300, 0, :].to('cpu')) < 1e-6).any(dim=2), dim=2)
@@ -119,4 +129,7 @@ class TDnLearner(QLearner):
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            #$ #$ QVALUES TEST $# $#
+            self.logger.log_stat("q_loss", q_loss.item(), t_env)
+            
             self.log_stats_t = t_env

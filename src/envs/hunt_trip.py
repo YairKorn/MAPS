@@ -18,6 +18,7 @@ import os, yaml, datetime
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
 from collections import deque as queue
+from tabulate import tabulate
 import numpy as np
 import matplotlib.pyplot as plt
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'hunt_trip_maps')
@@ -58,7 +59,7 @@ class HuntingTrip(MultiAgentEnv):
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
         self.grid = np.zeros((self.height, self.width, 4), dtype=np.float16)
         self.n_cells = self.grid[:, :, 0].size
-        # grid structure: agents locations | preys locations | surface
+        # grid structure: agents locations | preys locations | surface | Carriage
         
         self.shuffle_config = getattr(args, "shuffle_config", False)
         self.obstacle_rate  = getattr(args, "obstacle_rate", 0.2)
@@ -126,6 +127,17 @@ class HuntingTrip(MultiAgentEnv):
         self.reward_stay      = getattr(args, "reward_stay", -0.1)
         self.reward_collision = getattr(args, "reward_collision", 0.0)
 
+        # Logging
+        self.log_env       = getattr(args, "log_env", False)
+        self.log_episode = np.zeros(3)
+        self.log_stat      = {
+             "actions": np.zeros(3),
+             "episode": 0
+        }
+        self.log_collector = []
+        self.test_mode     = False
+        self.nepisode      = 0
+
         # Internal variables
         self.actors = np.zeros_like(self.actor_placement, dtype=np.int16)
         self.prey_for_agent = np.zeros(self.n_actors[0], dtype=np.int16)
@@ -155,6 +167,11 @@ class HuntingTrip(MultiAgentEnv):
         for i in range(2):
             self._place_actors(actor=i)
 
+        if kwargs:
+            self.log_episode.fill(0)
+            self.test_mode = kwargs['test_mode']
+            self.nepisode  = kwargs['test_nepisode']
+
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
     def step(self, actions):
@@ -180,6 +197,7 @@ class HuntingTrip(MultiAgentEnv):
 
             if actions[agent] >= self.action_labels["catch"]:
                 prey_loc = self._select_prey(actions[agent], self.actors[0, agent])
+                self.log_episode[1 + (prey_loc is None)] += 1
 
                 if prey_loc is not None:
                     # Find the hunted prey
@@ -194,6 +212,8 @@ class HuntingTrip(MultiAgentEnv):
                     self.prey_available[hunted_prey] = 0
                     
                     reward += self.reward_hunt                
+            else:
+                self.log_episode[0] += 1
 
                 # adjacent_preys = (np.absolute(self.actors[1] - new_locations[agent]).sum(axis=1) <= 1) * (self.prey_available)
             
@@ -209,6 +229,10 @@ class HuntingTrip(MultiAgentEnv):
         # if (all preys were caught) or (episode limit was reached), end the episode
         terminated = (not np.sum(self.grid[:, :, 1])) or self.steps >= self.episode_limit
         info = {"episode_limit": self.steps >= self.episode_limit}
+
+        # Logging (only for test episodes, when logger is on)
+        if self.log_env and self.test_mode and terminated:
+            self._logger()
 
         return reward, terminated, info
 
@@ -227,16 +251,25 @@ class HuntingTrip(MultiAgentEnv):
             prey_available = self.grid[prey_location[:, 0], prey_location[:, 1], 1] * avail_actions[:5]
             if self.directed_catch:
                 avail_actions[self.action_labels["catch"]:] = prey_available
+                # for i in range(5):
+                #     nloc = self.actors[0, agent] + self.action_effect[i]
+                #     if avail_actions[5+i]:
+                #         assert self.grid[nloc[0], nloc[1], 1]
+                #     else:
+                #         assert self.avail_actions[nloc[0]+1, nloc[1]+1] or self.grid[nloc[0], nloc[1], 1] == 0
             else:
                 avail_actions[self.action_labels["catch"]] = (prey_available.sum() > 0)    
         
         if not self.allow_collisions:
             next_location = self.actors[0, agent] + avail_actions.reshape(-1, 1) * self.action_effect
             avail_actions[:4] = self.grid[next_location[:4, 0], next_location[:4, 1], 0] == 0
-        
+
+        assert avail_actions[4] # should always be available
         return avail_actions
 
     def close(self):
+        if self.log_env:
+            self._print_table()
         print("Closing Hunting Trip Environment")
 
     ################################ Obs Functions ################################
@@ -401,3 +434,25 @@ class HuntingTrip(MultiAgentEnv):
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid
         return np.stack(np.where(self.grid[:, :, 2] != -1)).transpose()[:self.n_agents]
+
+    # Simple logger to track agents' performances
+    def _logger(self):
+        self.log_stat["episode"] += 1
+        self.log_stat["actions"] += self.log_episode
+
+        if self.log_stat["episode"] == self.nepisode:
+            self.log_collector.append(self.log_stat["actions"].copy() / self.log_stat["episode"])
+            avg_act = self.log_stat["actions"] / self.log_stat["episode"]
+            print(f'ENV LOG | Moves: {avg_act[0]}, Success Catches: {avg_act[1]}, Fail Catches: {avg_act[2]}')
+            
+            self.log_stat["actions"] *= 0
+            self.log_stat["episode"] = 0
+    
+    def _print_table(self):
+        values_data =[]
+        headers = ['Time', 'Moves', 'Success Catches', 'Fail Catches']
+        print('\n\n=== ENV LOG - SUMMARY ===')
+
+        for t in range(len(self.log_collector)):
+            values_data.append([t, self.log_collector[t][0], self.log_collector[t][1], self.log_collector[t][2]])
+        print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))

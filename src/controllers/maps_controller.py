@@ -32,7 +32,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
             self.logger = th.zeros((0, self.n_actions))
             self.bs = (self.bs + (not test_mode)) % self.args.batch_size #$
             self.test = test_mode #$
-            self.cliques = np.empty(0)
+            self.cliques = np.empty(0) #! This is not debug
 
         # Preservation of hidden state in stochastic environment
         if self.action_model.stochastic_env:

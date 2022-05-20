@@ -10,13 +10,16 @@ class MAPSLearner(TDnLearner):
         self.buffer = self.mac.action_model.buffer
         self.args.gamma = np.power(self.args.gamma, 1/self.args.n_agents)
 
-        # TD-n properties
-        self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else args.n_agents+1 # TD-n default n_agents+1
-        self.TDn_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.TDn_bound-1)), \
-            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
-
-        print(f'### TDn Learner uses TD-1...{self.TDn_bound}, with weights: {self.TDn_weight[:, 0, 0, 0]}')
-
+        if self.alg == "TD":
+            # TD-n properties
+            self.n_bound = args.TDn_bound if args.TDn_bound is not None else args.n_agents+1 # TD-n default n_agents+1
+            self.n_values = range(1, self.n_bound+1)
+            self.n_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.n_bound-1)), \
+                th.tensor([args.TDn_weight ** (self.n_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
+            print(f'### TD-n Learner uses TD-1...{self.n_bound}, with weights: {self.n_weight[:, 0, 0, 0]} ###')
+        elif self.alg == "MC":
+            self.n_values[0] = (self.n_values[0] - 1) * args.n_agents + 1
+            print(f'### Monte-Carlo Learner uses Conv-{self.n_values} ###')
 
     """ A learner of MAPS architecture """
     def train(self, _: EpisodeBatch, t_env: int, episode_num: int):

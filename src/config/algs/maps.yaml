@@ -5,21 +5,23 @@ name: "maps"
 action_selector: "epsilon_greedy"
 epsilon_start: 1.0            # Initial epsilon for exploration
 epsilon_finish: 0.05          # Final epsilon for exploration
-epsilon_anneal_time: 256    # Number of time steps until exploration has finished
 
-# specify learner, controller and agent
+# Specify learner, controller and agent
 agent: "rnn"                  # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
 double_q: True                # DDQN
 learner: "maps_learner"       # The learner for MAPS
 mac: "maps"                   # The multi-agent controller for MAPS
 mixer:                        # No mixing network for MAPS
-target_update_interval: 200   # Update the target network every {} episodes
+target_update_interval: 200    # Update the target network every {} episodes
+
+# Specify single-agent RL algorithm
+RL_Algorithm: "TD"            # Select single-agent RL algorithm; implemented algorithms: 'TD', 'MC'
 TDn_bound:                    # TD-lambda bound on n. null -> n_agents+1
 TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
 # MAPS-specific configuration
-random_ordering: False         # Re-order sequence of agents action-selection every step
+random_ordering: True         # Re-order sequence of agents action-selection every step
 decomposed_reward: True       # If True, use agent-specific reward from action model. Otherwise, use divide the joint reward between agents
 
 # Stoachstic Environment
@@ -27,4 +29,4 @@ apply_MCTS: True              # if True, MCTS buffer is activated. Otherwise, a 
 MCTS_buffer_size: 8           # Size of MCTS buffer for stochastic environment
 MCTS_sampling: 0              # Sample from MCTS buffer when selecting an action. 0 means "the whole filled buffer"
 
-internal_buffer_cuda: True    # Use CUDA for internal buffer to enhance performance
+internal_buffer_cuda: False    # Use CUDA for internal buffer to enhance performance

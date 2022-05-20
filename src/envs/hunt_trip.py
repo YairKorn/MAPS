@@ -137,6 +137,9 @@ class HuntingTrip(MultiAgentEnv):
         self.log_collector = []
         self.test_mode     = False
         self.nepisode      = 0
+        
+        #$ EXP
+        self.act_collector = []
 
         # Internal variables
         self.actors = np.zeros_like(self.actor_placement, dtype=np.int16)
@@ -232,7 +235,7 @@ class HuntingTrip(MultiAgentEnv):
 
         # Logging (only for test episodes, when logger is on)
         if self.log_env and self.test_mode and terminated:
-            self._logger()
+            self._logger(actions)
 
         return reward, terminated, info
 
@@ -436,7 +439,7 @@ class HuntingTrip(MultiAgentEnv):
         return np.stack(np.where(self.grid[:, :, 2] != -1)).transpose()[:self.n_agents]
 
     # Simple logger to track agents' performances
-    def _logger(self):
+    def _logger(self, actions):
         self.log_stat["episode"] += 1
         self.log_stat["actions"] += self.log_episode
 
@@ -444,7 +447,11 @@ class HuntingTrip(MultiAgentEnv):
             self.log_collector.append(self.log_stat["actions"].copy() / self.log_stat["episode"])
             avg_act = self.log_stat["actions"] / self.log_stat["episode"]
             print(f'ENV LOG | Moves: {avg_act[0]}, Success Catches: {avg_act[1]}, Fail Catches: {avg_act[2]}')
+            print(f'ENV LOG | Last Actions: {actions}')
             
+            #$ EXP
+            self.act_collector.append(actions)
+
             self.log_stat["actions"] *= 0
             self.log_stat["episode"] = 0
     
@@ -456,3 +463,10 @@ class HuntingTrip(MultiAgentEnv):
         for t in range(len(self.log_collector)):
             values_data.append([t, self.log_collector[t][0], self.log_collector[t][1], self.log_collector[t][2]])
         print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))
+
+        #$ EXP
+        values_data =[]
+        headers = ['Time', 'Moves']
+        for t in range(len(self.log_collector)):
+            values_data.append([t, self.act_collector[t]])
+        print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))       

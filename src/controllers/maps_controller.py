@@ -4,6 +4,7 @@ from tabulate import tabulate
 from .basic_controller import BasicMAC
 from action_model import REGISTRY as model_REGISTRY
 # from test.agent_maps_test import MAPSTest
+th.set_printoptions(precision=2)
 
 class MultiAgentPseudoSequntialMAC(BasicMAC):
     def __init__(self, scheme, groups, args):
@@ -65,6 +66,8 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
                 self.obs_number[self.bs, self.action_model.t, :] = obs.shape[0]
  
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
+            if self.action_model.buffer.buffer_index == 0: #$ DEBUG ONLY
+                chosen_actions[0, i] = 6
 
             # simulate action in the environment
             self.action_model.step(i, chosen_actions, obs, hidden_states, avail_actions)

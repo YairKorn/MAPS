@@ -5,7 +5,6 @@ name: "dcg"
 action_selector: "epsilon_greedy"
 epsilon_start: 1.0            # Initial epsilon for exploration
 epsilon_finish: 0.05          # Final epsilon for exploration
-epsilon_anneal_time: 150000    # Number of time steps until exploration has finished
 
 # specify runner
 buffer_size: 500              # Number of episodes in the experience replay buffer

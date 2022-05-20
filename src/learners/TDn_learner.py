@@ -1,7 +1,8 @@
-from scipy.fftpack import diff
 import torch as th
 from .q_learner import QLearner
 from components.episode_buffer import EpisodeBatch
+
+import time
 
 """ TDn Learner implements offline TD-lambda bounded by n-steps due to performances issues """
 class TDnLearner(QLearner):
@@ -9,10 +10,17 @@ class TDnLearner(QLearner):
         super().__init__(mac, scheme, logger, args)
         self.device = "cuda" if args.internal_buffer_cuda else "cpu" #! Specific to MAPS; consider generalizing
 
-        # TD-n properties
-        self.TDn_bound = args.TDn_bound if args.TDn_bound is not None else 1 # TD-n default n=1 (Q-learning)
-        self.TDn_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.TDn_bound-1)), \
-            th.tensor([args.TDn_weight ** (self.TDn_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
+        self.alg = args.RL_Algorithm
+
+        if self.alg == "TD":
+            # TD-n properties
+            self.n_bound = args.TDn_bound if args.TDn_bound is not None else 1 # TD-n default n=1 (Q-learning)
+            self.n_values = range(1, self.n_bound+1)
+            self.n_weight = th.cat(((1 - args.TDn_weight) * (args.TDn_weight ** th.arange(self.n_bound-1)), \
+                th.tensor([args.TDn_weight ** (self.n_bound-1)]))).to(self.device).view(-1, 1, 1, 1)
+        elif self.alg == "MC":
+            self.n_values = [args.env_args['episode_limit'] + 1, ]
+            self.n_weight = th.ones(size=(1, 1, 1, 1)).to(self.device)
 
     """ An offline n-bound TD-lambda learner """
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
@@ -36,21 +44,7 @@ class TDnLearner(QLearner):
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
-        #$ #$ #$ QVALUES TEST $# $# $#
-        calc_qvalues = mac_out[:, :-1, 0, 6].cpu()
-        targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
-
-        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
-        print(calc_qvalues[0])
-
-
-        #$ #$ #$   TILL HERE   $# $# $#
-
-        #$ TEST:
-        # single_obs = ((self.mac.obs_number[:, :300] * mask.cpu()) == 1)
-        # equal_obs  = th.unsqueeze((th.abs(self.mac.qvalue_dic[:, :300, :] - mac_out[:, :300, 0, :].to('cpu')) < 1e-6).any(dim=2), dim=2)
-        # diffs = th.where(th.logical_xor(single_obs, equal_obs))
-
+        
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
 
@@ -80,7 +74,7 @@ class TDnLearner(QLearner):
 
         targets = []
         ### Calculate TD-n, for 1...TDn_bound ##
-        for n in range(1, self.TDn_bound+1):
+        for n in self.n_values:
             reward_conv = th.nn.Conv1d(1, 1, n, bias=False)
             reward_conv.weight.data = (self.args.gamma ** th.arange(n).view(1, 1, -1)).to(self.device)
             rewards_n = reward_conv(th.cat((rewards.reshape(batch.batch_size, 1, -1), th.zeros((batch.batch_size, 1, n-1), device=self.device)), axis=2))
@@ -99,7 +93,7 @@ class TDnLearner(QLearner):
             targets.append(rewards_n + (self.args.gamma ** n) * (1 - term_n) * target_max_qvals_n)
 
         targets = th.stack(targets, dim=0)
-        targets = (self.TDn_weight * targets).sum(dim=0)  # Concat across TD-ns, and multiply by the weights
+        targets = (self.n_weight * targets).sum(dim=0)  # Concat across TD-ns, and multiply by the weights
 
         # Td-error
         td_error = (chosen_action_qvals - targets.detach())
@@ -112,6 +106,17 @@ class TDnLearner(QLearner):
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
 
+        #$ #$ #$ QVALUES TEST $# $# $#
+        calc_qvalues = mac_out[0, :-1, 0, 6].cpu()
+        targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
+
+        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
+        # print(f'Calc: {calc_qvalues.detach()}')
+        # print(f'MC  : {targets[0, :, 0].detach()}')
+
+        # time.sleep(0.2)
+
+        #$ #$ #$   TILL HERE   $# $# $#
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()
@@ -131,5 +136,7 @@ class TDnLearner(QLearner):
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             #$ #$ QVALUES TEST $# $#
             self.logger.log_stat("q_loss", q_loss.item(), t_env)
-            
+            self.logger.log_stat("f_value", calc_qvalues[0].item(), t_env)
+            self.logger.log_stat("l_value", calc_qvalues[-1].item(), t_env)
+
             self.log_stats_t = t_env

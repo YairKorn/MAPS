@@ -165,12 +165,10 @@ class HuntingTrip(BasicAM):
 
         # Apply "catch" action
         if (action > 4) and (result == 0):
-            #! KNOWN PROBLEM: if two (or more) agents apply "catch" the action model doesn't know who will take the prey
-            #!                for back-updating, one need to reorder the action selection
-            #!                for now, ignoring it and try...
             prey_loc = self._select_prey(state, agent_location, action)
             if prey_loc is not None:
                 state[prey_loc[0], prey_loc[1], 1] = 0
+                state[new_location[0], new_location[1], 3] += 1 # update number of preys hunted by the agent
                 self.prey_for_agent[agent_id] += 1
                 reward = reward + self.reward_hunt
         

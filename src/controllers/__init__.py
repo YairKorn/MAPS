@@ -17,3 +17,6 @@ REGISTRY["low_rank_q"] = LowRankMAC
 
 from .maps_controller import MultiAgentPseudoSequntialMAC
 REGISTRY["maps"] = MultiAgentPseudoSequntialMAC
+
+from .tabular_maps import TabularMAPS
+REGISTRY["tabular_maps"] = TabularMAPS

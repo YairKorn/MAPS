@@ -26,6 +26,20 @@
             ],
         },
         {
+            "name": "PyMARL_tMAPS",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config=maps_tabular",
+                "--env-config=hunt_trip",
+                "with",
+                "obs_agent_id=False",
+                "-d"
+            ],
+        },
+        {
             "name": "PyMARL_IQL",
             "type": "python",
             "request": "launch",

@@ -13,3 +13,6 @@ REGISTRY["dcg_learner"] = DCGLearner
 
 from .maps_learner import MAPSLearner
 REGISTRY["maps_learner"] = MAPSLearner
+
+from .maps_tabular_learner import MAPSTabularLearner
+REGISTRY["tabular_learner"] = MAPSTabularLearner

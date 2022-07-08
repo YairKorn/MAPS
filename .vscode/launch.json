@@ -33,21 +33,21 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=maps_tabular",
-                "--env-config=hunt_trip",
+                "--env-config=adv_coverage",
                 "with",
                 "obs_agent_id=False",
                 "-d"
             ],
         },
         {
-            "name": "PyMARL_IQL",
+            "name": "PyMARL_tIQL",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=iql",
-                "--env-config=adv_coverage",
+                "--config=iql_tabular",
+                "--env-config=hunt_trip",
                 "with",
                 "obs_agent_id=True",
                 "-d"

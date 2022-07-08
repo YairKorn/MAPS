@@ -20,5 +20,5 @@ class MAPSTabularLearner(TabularLearner):
 
     """ A learner of MAPS architecture """
     def train(self, _: EpisodeBatch, t_env: int, episode_num: int):
-        # use the basic TDn-learner but episodes are taken from the internal, decomposed, buffer
-        super().train(self.buffer, t_env, episode_num)
+        pass
+        # super().train(self.buffer, t_env, episode_num)

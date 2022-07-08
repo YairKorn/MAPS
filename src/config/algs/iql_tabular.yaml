@@ -1,5 +1,5 @@
 # --- "Multi-Agent Pseudo-Sequential" parameters ---
-name: "maps_tabular"
+name: "iql_tabular"
 
 # use epsilon greedy action selector
 action_selector: "epsilon_greedy"
@@ -7,19 +7,14 @@ epsilon_start: 1.0            # Initial epsilon for exploration
 epsilon_finish: 0.05          # Final epsilon for exploration
 
 # Specify learner, controller and agent
-agent: "ol_tabular"           # A RNN agent that returns its hidden state instead of its value
+agent: "tabular"              # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
 double_q: False               # DDQN
-learner: "maps_tabular_learner" # The learner for MAPS
-mac: "tabular_maps"           # The multi-agent controller for MAPS
-mixer:                        # No mixing network for MAPS
-target_update_interval:       # Update the target network every {} episodes
+learner: "tabular_learner"       # The learner for MAPS
+mac: "tabular_iql"                   # The multi-agent controller for MAPS
+mixer:                         # No mixing network for MAPS
+target_update_interval:        # Update the target network every {} episodes
 alpha: 0.3                    # Learning rate for tabular
-
-# Specify single-agent RL algorithm
-RL_Algorithm: "TD"            # Select single-agent RL algorithm; implemented algorithms: 'TD', 'MC'
-TDn_bound:                    # TD-lambda bound on n. null -> n_agents+1
-TDn_weight: 0.3               # TD-lambda weights, calculate (1-lambda), lambda(1-lambda) etc.
 
 # MAPS-specific configuration
 random_ordering: False        # Re-order sequence of agents action-selection every step

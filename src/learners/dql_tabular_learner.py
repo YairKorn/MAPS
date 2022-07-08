@@ -1,22 +1,20 @@
-from components.episode_buffer import EpisodeBatch
+from enum import unique
 import torch as th
-from os import path as pt
+import numpy as np
+from .tabular_learner import TabularLearner
+from components.episode_buffer import EpisodeBatch
 
-class TabularLearner:
+class DQLTabularLearner(TabularLearner):
     def __init__(self, mac, scheme, logger, args):
-        self.args = args
-        self.logger = logger
-        
-        self.mac = mac
-        self.agent = mac.agent
+        super().__init__(mac, scheme, logger, args)
+        self.buffer = self.mac.action_model.buffer
 
-        self.alpha = args.alpha
-        self.log_stats_t = -self.args.learner_log_interval - 1
 
+    """ A learner of MAPS architecture """
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
         # Get the relevant quantities
         observations = batch["obs"][:, :-1]
-        rewards = batch["reward"][:, :-1]
+        rewards = self.buffer["reward"][:, :(self.mac.n_agents*observations.shape[1])].reshape(batch.batch_size, -1, self.mac.n_agents)
         actions = batch["actions"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
         mask = batch["filled"][:, :-1].float()
@@ -27,7 +25,7 @@ class TabularLearner:
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            agent_outs = self.mac.forward(batch, t=t)
+            agent_outs = self.mac.forward(batch, t=t) #$ HERE I SHOULD RUN ALL THE AGENTS CONCURRENTLY
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
@@ -54,15 +52,3 @@ class TabularLearner:
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.log_stats_t = t_env
-
-    # Irrelevant inhereted functions
-    def cuda(self):
-        pass
-
-    def save_models(self, path):
-        path = pt.dirname(path)
-        self.agent.save_model(path)
-
-    def load_models(self, path):
-        path = pt.dirname(path)
-        self.agent.load_model(path)

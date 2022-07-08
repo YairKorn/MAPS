@@ -7,7 +7,7 @@ env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
     obstacles: False        # Obstacles in the grid map
-    map: "QTest_8Agents"    # A specified setup obstacles in the environment
+    map: "Hunt_7x7_Multi"    # A specified setup obstacles in the environment
  
     random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
@@ -32,9 +32,9 @@ env_args:
     reward_stay: -0.1       # a lower cost for staying not making a move. When staying, "carry reward" does not rewarded
 
     # Logging options
-    log_env: True           # collect and print log of agents performance
+    log_env: False          # collect and print log of agents performance
 
-    episode_limit: 1      # maximum number of time steps per episode
+    episode_limit: 100      # maximum number of time steps per episode
 
-t_max: 2048              # number of time steps of the experiment
+t_max: 1250000              # number of time steps of the experiment
 

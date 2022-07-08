@@ -15,4 +15,7 @@ from .maps_learner import MAPSLearner
 REGISTRY["maps_learner"] = MAPSLearner
 
 from .maps_tabular_learner import MAPSTabularLearner
-REGISTRY["tabular_learner"] = MAPSTabularLearner
+REGISTRY["maps_tabular_learner"] = MAPSTabularLearner
+
+from .dql_tabular_learner import DQLTabularLearner
+REGISTRY["tabular_learner"] = DQLTabularLearner

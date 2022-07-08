@@ -432,7 +432,7 @@ class HuntingTrip(MultiAgentEnv):
         # Locate actors in the grid and store their location
         self.grid[placement[:self.n_actors[actor], 0], placement[:self.n_actors[actor], 1], actor] = \
             (1 if actor else (np.arange(self.n_actors[actor]) + 1))
-        self.actors[actor, :self.n_actors[actor]] = placement
+        self.actors[actor, :self.n_actors[actor]] = placement[:self.n_actors[actor]]
 
     def _calc_placement(self):
         # Calculate the first n_agent empty cells in the grid

@@ -30,7 +30,7 @@ local_results_path: "results" # Path for local results
 gamma: 0.99
 batch_size: 8 # Number of episodes to train on
 buffer_size: 8 # Size of the replay buffer
-epsilon_anneal_time: 10000 # Number of time steps until exploration has finished
+epsilon_anneal_time: 512 # Number of time steps until exploration has finished
 lr: 0.0005 # Learning rate for agents
 critic_lr: 0.0005 # Learning rate for critics
 optim_alpha: 0.99 # RMSProp alpha

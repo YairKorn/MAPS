@@ -1,9 +1,10 @@
 import numpy as np
 import torch as th
+from os import path as pt
 from tabulate import tabulate
 from .basic_controller import BasicMAC
 from action_model import REGISTRY as model_REGISTRY
-# from test.agent_maps_test import MAPSTest
+from modules.agents import REGISTRY as agent_REGISTRY
 th.set_printoptions(precision=2)
 
 class TabularMAPS(BasicMAC):
@@ -16,6 +17,8 @@ class TabularMAPS(BasicMAC):
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
 
+        self.qtable = agent_REGISTRY[args.agent](None, args)
+
     ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
@@ -26,6 +29,7 @@ class TabularMAPS(BasicMAC):
             self.logger = th.zeros((0, self.n_actions))
             self.test = test_mode #$
             self.cliques = np.empty(0) #! This is not debug
+            self.batch = self.action_model.batch
 
         # Detect interactions between agent, for selecting a joint action in these interactions
         self.cliques = self.action_model.detect_interaction(state_data)
@@ -49,6 +53,9 @@ class TabularMAPS(BasicMAC):
             values = self.select_agent_action(inputs)
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
 
+            # if (values == 0).all() and test_mode and t_env > 100 and t_ep == 0:
+            #     print(f"Missing: {chosen_actions}")
+
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
             # simulate action in the environment
@@ -56,6 +63,19 @@ class TabularMAPS(BasicMAC):
 
             #$ DEBUG: Log q-values in the logger
             self.logger = th.cat((self.logger, th.squeeze(values, axis=1)), axis=0)
+
+        # Online learning for the previous timestep
+        if not test_mode and t_ep > 0:
+            max_i = th.where(self.action_model.batch["terminated"])[1][0] if self.action_model.terminated else 1e3
+            rng = slice(self.n_agents*(t_ep-1), min(self.n_agents*t_ep, max_i)+1)
+
+            self.agent.update_qvalues(
+                self.batch["obs"][:, rng , 0],
+                self.batch["actions"][:, rng, 0, 0],
+                self.batch["avail_actions"][:, rng, 0],
+                self.batch["reward"][:, rng, 0]
+            )
+                #!!!! CHECK THIS !!!!#
 
         return chosen_actions
 
@@ -72,10 +92,29 @@ class TabularMAPS(BasicMAC):
 
    # Used for training and propagating the hidden state in stochastic environment, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
-        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
+        agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, 1, -1)
         agent_outs = self.agent.forward(agent_inputs)
         
         return agent_outs.view(ep_batch.batch_size, 1, -1)
+
+
+    # def learning(self, t_ep):
+    #     #! NEED TO GET A NEW OBSERVATION!
+    #     for t in range(t_ep, t_ep-self.cliques.size(), -1):
+    #         o = self.action_model.batch["obs"][0, t]
+    #         a = self.action_model.batch["actions"][0, t, 0]
+    #         v = self.calc_target(t)
+    #         self.agent.update_qvalues(o, a, v)
+
+
+    # def calc_target(self, t):
+    #     s  = self.action_model.batch["obs"][0, t]
+    #     a = self.action_model.batch["actions"][0, t, 0]
+    #     ns = self.action_model.batch["obs"][0, t+1]
+    #     r  = self.action_model.batch["reward"][0, t]
+
+    #     return (1-self.alpha) * self.agent.forward(s)[a] + self.alpha * (r + self.gamma * self.agent.forward(ns))
+
 
     #$ DEBUG: Plot the sequence of q-values for the whole episode
     def values_seq(self):
@@ -103,3 +142,18 @@ class TabularMAPS(BasicMAC):
     def last_transition(self):
         bs=self.action_model.buffer.buffer_index-1
         return th.sum(self.action_model.buffer['filled'][bs, :, 0])
+
+    # Irrelevant inhereted functions
+    def load_state(self, other_mac):
+        pass
+
+    def cuda(self):
+        pass
+
+    def save_models(self, path):
+        path = pt.dirname(path)
+        self.agent.save_model(path)
+
+    def load_models(self, path):
+        path = pt.dirname(path)
+        self.agent.load_model(path)

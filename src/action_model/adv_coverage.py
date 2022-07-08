@@ -47,7 +47,7 @@ class AdvCoverage(BasicAM):
         # Extract agents' locations from the state
         temp_agents = th.stack(th.where(state[:, :, 0] > 0)).transpose(0, 1).cpu()
         identities = state[temp_agents[:, 0], temp_agents[:, 1], 0].long() - 1
-        assert (not self.t) or (data["agents"][0][identities] == temp_agents).all(), "Mismatch update!"
+        # assert (not self.t) or (data["agents"][0][identities] == temp_agents).all(), "Mismatch update!"
         
         # Update state information
         data["state"][0] = state

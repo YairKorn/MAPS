@@ -8,3 +8,6 @@ REGISTRY["rnn_feat"] = RNNFeatureAgent
 
 from .tabular_agent import TabularAgent
 REGISTRY["tabular"] = TabularAgent
+
+from .online_tabular_agent import OnlineTabularAgent
+REGISTRY["ol_tabular"] = OnlineTabularAgent

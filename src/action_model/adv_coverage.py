@@ -18,7 +18,7 @@ class AdvCoverage(BasicAM):
         super().__init__(scheme, args, stochastic=True)
 
         # Basics of action model
-        self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)
+        self.action_effect = th.tensor([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=th.int)[:self.n_actions]
         self.state_repr = defaultdict(lambda: ' ')
         for k ,v in [(9.0, 'X'), (1.0, '*'), (-1.0, '$'), (2.0, '#')]:
             self.state_repr[k] = v

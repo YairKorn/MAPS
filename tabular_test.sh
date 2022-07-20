@@ -17,16 +17,16 @@ TIME=(1250000)
 #     done
 # done
 
-MAPS=(Hunt_5x5_Simple Hunt_7x7_Multi) #
-TIME=(400000 700000) #100000
+MAPS=(Threat_5x5_Hard) #Hunt_7x7_Multi
+TIME=(600000) #100000
 
 for i in {1..1}; do
     echo "Iteration number $i:"
 
     for ind in ${!MAPS[*]}; do
         echo "Run tabular MAPS in ${MAPS[$ind]} for ${TIME[$ind]} steps"
-        python src/main.py --config=maps_tabular --env-config=hunt_trip with \
-        obs_agent_id=False t_max=${TIME[$ind]} env_args.map=${MAPS[$ind]} epsilon_anneal_time=200000 #env_args.catch_validity=True
+        python src/main.py --config=maps_tabular --env-config=adv_coverage with \
+        obs_agent_id=False t_max=${TIME[$ind]} env_args.map=${MAPS[$ind]} epsilon_anneal_time=500000 #env_args.catch_validity=True
 
         # echo "Run tabular DQL in ${MAPS[$ind]} for ${TIME[$ind]} steps"
         # python src/main.py --config=iql_tabular --env-config=hunt_trip with \

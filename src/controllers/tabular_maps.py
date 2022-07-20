@@ -66,7 +66,7 @@ class TabularMAPS(BasicMAC):
 
         # Online learning for the previous timestep
         if not test_mode and t_ep > 0:
-            max_i = th.where(self.action_model.batch["terminated"])[1][0] if self.action_model.terminated else 1e3
+            max_i = th.where(self.action_model.batch["terminated"])[1][0].item() if self.action_model.terminated else 1e7
             rng = slice(self.n_agents*(t_ep-1), min(self.n_agents*t_ep, max_i)+1)
 
             self.agent.update_qvalues(
@@ -96,25 +96,6 @@ class TabularMAPS(BasicMAC):
         agent_outs = self.agent.forward(agent_inputs)
         
         return agent_outs.view(ep_batch.batch_size, 1, -1)
-
-
-    # def learning(self, t_ep):
-    #     #! NEED TO GET A NEW OBSERVATION!
-    #     for t in range(t_ep, t_ep-self.cliques.size(), -1):
-    #         o = self.action_model.batch["obs"][0, t]
-    #         a = self.action_model.batch["actions"][0, t, 0]
-    #         v = self.calc_target(t)
-    #         self.agent.update_qvalues(o, a, v)
-
-
-    # def calc_target(self, t):
-    #     s  = self.action_model.batch["obs"][0, t]
-    #     a = self.action_model.batch["actions"][0, t, 0]
-    #     ns = self.action_model.batch["obs"][0, t+1]
-    #     r  = self.action_model.batch["reward"][0, t]
-
-    #     return (1-self.alpha) * self.agent.forward(s)[a] + self.alpha * (r + self.gamma * self.agent.forward(ns))
-
 
     #$ DEBUG: Plot the sequence of q-values for the whole episode
     def values_seq(self):

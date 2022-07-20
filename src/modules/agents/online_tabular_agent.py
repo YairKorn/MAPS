@@ -31,8 +31,11 @@ class OnlineTabularAgent():
             lstate = [hash(tuple(s.tolist())) for s in states[i]]
 
             for j in range(len(lstate)-2, -1, -1):
-                values = self.qtable[lstate[j+1]].clone() if lstate[j+1] in self.qtable else th.zeros(1, self.n_actions)
-                values[0, avail_actions[i, j+1] == 0] = -1e7
+                if lstate[j+1] in self.qtable:
+                    values = self.qtable[lstate[j+1]].clone()
+                    values[0, avail_actions[i, j+1] == 0] = -1e7
+                else:
+                    values = th.zeros(1, self.n_actions)
 
                 
                 if lstate[j] not in self.qtable:

@@ -26,7 +26,10 @@ class TabularMAPS(BasicMAC):
 
         #$ DEBUG: Reset logger - record all q-values during an episode
         if t_ep == 0:
+            # if hasattr(self, 'logger'):
+            #     self.values_seq()
             self.logger = th.zeros((0, self.n_actions))
+
             self.test = test_mode #$
             self.cliques = np.empty(0) #! This is not debug
             self.batch = self.action_model.batch
@@ -52,9 +55,6 @@ class TabularMAPS(BasicMAC):
             inputs = self._build_inputs(obs.unsqueeze(dim=1), self.action_model.batch, self.action_model.t)
             values = self.select_agent_action(inputs)
             values = th.unsqueeze((values * probs.view(1, -1, 1)).sum(dim=1), dim=1)
-
-            # if (values == 0).all() and test_mode and t_env > 100 and t_ep == 0:
-            #     print(f"Missing: {chosen_actions}")
 
             chosen_actions[0, i] = self.action_selector.select_action(values[bs], avail_actions, t_env, test_mode=test_mode)
 
@@ -101,15 +101,25 @@ class TabularMAPS(BasicMAC):
     def values_seq(self):
         bs = self.action_model.buffer.buffer_index-1
         values_data =[]
-        headers = ['Time', 'Agent', 'Q-Values', 'Max Q-value', 'Avail Actions', 'Action', 'Reward']
+        headers = ['Time', 'Agent', 'Q-Values', 'Max Q-value', 'Avail Actions', 'Action', 'Reward', 'Target']
 
         for t in range(min(self.logger.shape[0], self.action_model.buffer['reward'].shape[1])):
             values = self.logger[t, :]
             reward = self.action_model.buffer['reward'][bs, t, 0]
             action = self.action_model.buffer["actions"][bs, t, 0, 0]
             avail_actions = th.where(self.action_model.buffer["avail_actions"][bs, t, 0, :])[0].cpu().tolist()
+            
+            avail_values  = values.clone()
+            avail_values[self.action_model.buffer["avail_actions"][bs, t, 0, :] == 0] = -1e7
+            
+            if t+1 < min(self.logger.shape[0], self.action_model.buffer['reward'].shape[1]) - 1:
+                n_values = self.logger[t+1, :].clone() - 1e7 * (1 - self.action_model.buffer["avail_actions"][bs, t, 0, :])
+                target = th.max(n_values) * self.args.gamma + reward
+            else:
+                target = reward
+
             if len(avail_actions) > 0:
-                values_data.append([t, t%self.n_agents, values.data, th.max(values[avail_actions]), avail_actions, action, reward])
+                values_data.append([t, t%self.n_agents, values.data, th.max(avail_values), avail_actions, action, reward, target])
         print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))
 
     #$ DEBUG: Plot the q-values of a transition

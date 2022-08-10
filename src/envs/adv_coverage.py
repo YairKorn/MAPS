@@ -81,8 +81,9 @@ class AdversarialCoverage(MultiAgentEnv):
                     self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
 
         self.episode_limit = args.episode_limit
-        self.simulated_mode = getattr(args, "simulated_mode", False) # never disable a robot but give a negative reward for entering a threat
-        
+        self.simulated_mode = getattr(args, "simulated_mode", 0.0) # never disable a robot but give a negative reward for entering a threat
+        self.test_simulated = getattr(args, "test_simulated", False)
+
         # Observation properties
         self.observe_state = getattr(args, "observe_state", False)
         self.observe_ids = getattr(args, "observe_ids", False)
@@ -127,6 +128,7 @@ class AdversarialCoverage(MultiAgentEnv):
         self.log_collector = []
         self.test_mode     = False
         self.nepisode      = 0
+        self.log_id = getattr(args, "id", '0')
 
         # Internal variables
         self.agents = np.zeros(shape=(self.n_agents, 2), dtype=np.int16)
@@ -160,6 +162,13 @@ class AdversarialCoverage(MultiAgentEnv):
             self.test_mode = kwargs['test_mode']
             self.nepisode  = kwargs['test_nepisode']
 
+            # SIM FACTOR gradually increases the threats in the area
+            if not self.test_mode or self.test_simulated:
+                self.sim_factor = min(1 - (1.0 - self.simulated_mode) * (1 - kwargs['t_env'] / (kwargs['t_max'] * self.args.simulation_decay)), 1.0) \
+                    if self.args.simulation_decay > 0 else self.simulated_mode
+            else:
+                self.sim_factor = 1.0
+
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
     def step(self, actions):
@@ -192,7 +201,8 @@ class AdversarialCoverage(MultiAgentEnv):
         reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
+        # if not self.simulated_mode:
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2] * self.sim_factor
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
 
@@ -403,12 +413,14 @@ class AdversarialCoverage(MultiAgentEnv):
         FIG_SIZE = 6
 
         # Set up directory for saving results
-        result_path = os.path.join(os.getcwd(), 'results', 'env')
-        if not os.path.exists(result_path):
-            os.makedirs(result_path)
+        # result_path = os.path.join(os.getcwd(), 'results', 'env')
+        # if not os.path.exists(result_path):
+        #     os.makedirs(result_path)
+        # result_path = os.path.join(result_path, datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
 
-        result_path = os.path.join(result_path, datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
+        result_path = os.path.join(os.getcwd(), "results", "sacred", self.log_id, "env_log")
         os.makedirs(result_path)
+
 
         # Print threats on the map
         textmap = [[str(self.grid[i, j, 2]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]

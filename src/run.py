@@ -45,7 +45,7 @@ def run(_run, _config, _log):
     logger.setup_sacred(_run)
 
     # Run and train
-    run_sequential(args=args, logger=logger)
+    run_sequential(args=args, logger=logger, id=_run._id)
 
     # Clean up after finishing
     print("Exiting Main")
@@ -73,10 +73,10 @@ def evaluate_sequential(args, runner):
 
     runner.close_env()
 
-def run_sequential(args, logger):
+def run_sequential(args, logger, id):
 
     # Init runner so we can get env info
-    runner = r_REGISTRY[args.runner](args=args, logger=logger)
+    runner = r_REGISTRY[args.runner](args=args, logger=logger, id=id)
 
     # Set up schemes and groups here
     env_info = runner.get_env_info()
@@ -193,7 +193,7 @@ def run_sequential(args, logger):
 
         if args.save_model and (runner.t_env - model_save_time >= args.save_model_interval or model_save_time == 0):
             model_save_time = runner.t_env
-            save_path = os.path.join(args.local_results_path, "models", args.unique_token, str(runner.t_env))
+            save_path = os.path.join(args.local_results_path, "sacred", id, "model", str(runner.t_env))
             #"results/models/{}".format(unique_token)
             os.makedirs(save_path, exist_ok=True)
             logger.console_logger.info("Saving models to {}".format(save_path))

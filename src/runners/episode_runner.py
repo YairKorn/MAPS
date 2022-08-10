@@ -6,12 +6,13 @@ import numpy as np
 
 class EpisodeRunner:
 
-    def __init__(self, args, logger):
+    def __init__(self, args, logger, id):
         self.args = args
         self.logger = logger
         self.batch_size = self.args.batch_size_run
         assert self.batch_size == 1
 
+        self.args.env_args['id'] = id # Added for environment logger
         self.env = env_REGISTRY[self.args.env](**self.args.env_args)
         self.episode_limit = self.env.episode_limit
         self.t = 0
@@ -44,10 +45,12 @@ class EpisodeRunner:
         self.batch = self.new_batch()
         self.t = 0
 
-        # Inform the environmment about run mode, for environment internal logging
+        # Inform the environmment about run mode, for environment special features (as logging and simulation mode)
         kwargs = {
             'test_mode': test_mode,
-            'test_nepisode': self.args.test_nepisode
+            'test_nepisode': self.args.test_nepisode,
+            't_env': self.t_env,
+            't_max': self.args.t_max
         }
         self.env.reset(**kwargs)
 

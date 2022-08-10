@@ -7,7 +7,7 @@ env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
     obstacles: False        # Obstacles in the grid map
-    map: "Hunt_7x7_Multi"    # A specified setup obstacles in the environment
+    map: "Hunt_5x5_Multi"    # A specified setup obstacles in the environment
  
     random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles

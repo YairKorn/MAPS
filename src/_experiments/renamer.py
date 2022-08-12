@@ -12,7 +12,6 @@ def rename_dir(skip=2, prefix=''):
     dirs.sort(key=int)
 
     experiments = [os.path.join(PATH, d) for d in dirs[:len(dirs)-skip]]
-    # experiments.sort()
 
     for e in experiments:
         with open(os.path.join(e, 'config.json')) as f:
@@ -38,6 +37,6 @@ def make_parser():
     return parser
 
 if __name__ == '__main__':
-    # args = make_parser().parse_args()
-    # rename_dir(args.skip, args.prefix)
-    rename_dir(0, '')
+    args = make_parser().parse_args()
+    rename_dir(args.skip, args.prefix)
+    # rename_dir(0, '') #! DEBUG

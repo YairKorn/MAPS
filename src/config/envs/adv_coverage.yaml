@@ -28,16 +28,16 @@ env_args:
     default_action: 4       # The "do nothing" action
 
     # Enhance performances by controlling the actual risk
-    simulated_mode: 0.0     # if enabled, agents doesn't disabled by threats - 0.0 = no effect; 1.0 = full efect
-    simulation_decay: 0.2   # decay of the simulated mode as part of total time
+    simulated_mode: 1.0     # if enabled, agents doesn't disabled by threats - 0.0 = no effect; 1.0 = full efect
+    simulation_decay: 0.0   # decay of the simulated mode as part of total time
     test_simulated: False   # in test episodes turn on/off the simulation mode
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
-    reward_succes: 0.0      # positive reward given if grid is fully covered
+    reward_succes: 5.0      # positive reward given if grid is fully covered
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
-    reward_time: -1.0       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
+    reward_time: -0.5       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
 
     # Logging options
     log_env: True           # collect and print log of agents performance

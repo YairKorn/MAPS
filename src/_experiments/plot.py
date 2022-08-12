@@ -7,17 +7,20 @@ COLORS = ['blue', 'red', 'black', 'green', 'purple', 'tan', 'lime', 'skyblue', '
 
 def visualize(prefix, window=1, c=None):
     # list of file to plot on graph
-    experiments = [x[0] for x in os.walk(os.path.join(os.getcwd(), 'results', 'sacred'))]    
-    experiments = list(filter(lambda x: x.split('/')[-1].startswith(prefix), experiments))
-    labels = [x.split('/')[-1].replace(prefix + '#', '') for x in experiments]
+    # experiments = [x[0] for x in os.walk(os.path.join(os.getcwd(), 'results', 'sacred'))]
+    # experiments = list(filter(lambda x: x.split('/')[-1].startswith(prefix), experiments))
+    # labels = [x.split('/')[-1].replace(prefix + '#', '') for x in experiments]
+
+    experiments = os.listdir(os.path.join(os.getcwd(), 'results', 'sacred', prefix))
+
 
     if c is None:
-        c = labels
+        c = experiments
 
     # Compress dataset into categories
     dataset = {}
-    for l, e in zip(labels, experiments):
-        prefixes = [l.startswith(cat)*len(cat) for cat in c]
+    for e in experiments:
+        prefixes = [e.startswith(cat)*len(cat) for cat in c]
         match_pre = prefixes.index(max(prefixes))
 
         if max(prefixes): # Ignore data points that not realated to any category
@@ -31,7 +34,7 @@ def visualize(prefix, window=1, c=None):
 
     for pre, exp in dataset.items():
         # Extract the first file data, which used as reference to other files
-        data = json.load(open(os.path.join(exp[0], "info.json"), 'r'))
+        data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, exp[0], "info.json"), 'r'))
         test_time = np.asarray(data["test_return_mean_T"])
         if window > 1:
             test_time = test_time[:-window+1]
@@ -45,7 +48,8 @@ def visualize(prefix, window=1, c=None):
         # Calculate average result of this category
         if len(exp) > 1:
             for dir in exp[1:]:
-                data = json.load(open(os.path.join(dir, "info.json"), 'r'))
+                # data = json.load(open(os.path.join(dir, "info.json"), 'r'))
+                data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, dir, "info.json"), 'r'))
 
                 m_data = np.convolve(np.asarray([d["value"] for d in data["test_return_mean"]]), np.ones(window), 'valid') / window
                 m_data = m_data[:min(test_time.size, m_data.size)] # Trim longer data
@@ -86,4 +90,4 @@ if __name__ == "__main__":
     # Experiments on the same environment and plotted together
     args = make_parser().parse_args()
     visualize(args.prefix, args.window, args.c)
-    # visualize('Cov_11x11_9Boxes', 1, ['MAPS_Obs']) # Debug
+    # visualize('S7x7_4Boxes', 1) # Debug

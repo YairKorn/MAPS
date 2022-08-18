@@ -26,8 +26,6 @@ class TabularMAPS(BasicMAC):
 
         #$ DEBUG: Reset logger - record all q-values during an episode
         if t_ep == 0:
-            # if hasattr(self, 'logger'):
-            #     self.values_seq()
             self.logger = th.zeros((0, self.n_actions))
 
             self.test = test_mode #$

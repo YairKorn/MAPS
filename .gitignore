@@ -3,8 +3,8 @@
 
 # Exclude the results that you may have produced in past experiments
 results/
-batch_test.sh
-tabular_test.sh
+test_deep.sh
+test_tabular.sh
 
 # Exclude libraries etc.
 tb_logs/

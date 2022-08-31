@@ -201,7 +201,6 @@ class AdversarialCoverage(MultiAgentEnv):
         reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        # if not self.simulated_mode:
         threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2] * self.sim_factor
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
@@ -413,14 +412,8 @@ class AdversarialCoverage(MultiAgentEnv):
         FIG_SIZE = 6
 
         # Set up directory for saving results
-        # result_path = os.path.join(os.getcwd(), 'results', 'env')
-        # if not os.path.exists(result_path):
-        #     os.makedirs(result_path)
-        # result_path = os.path.join(result_path, datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
-
         result_path = os.path.join(os.getcwd(), "results", "sacred", self.log_id, "env_log")
         os.makedirs(result_path)
-
 
         # Print threats on the map
         textmap = [[str(self.grid[i, j, 2]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]

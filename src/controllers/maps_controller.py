@@ -13,6 +13,7 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         
         # MAPS properties & action model initalization
         self.random_ordering = getattr(args, "random_ordering", True)
+        self.joint_hidden = getattr(args, "joint_hidden", False)
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
 
@@ -86,7 +87,10 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
     # Calculate q-values based on observation
     def select_agent_action(self, obs, hidden_states):
-        agent_outs, _ = self.agent(obs, hidden_states.view(1, -1, self.args.rnn_hidden_dim))
+        if self.joint_hidden:
+            agent_outs, _ = self.agent(obs, hidden_states.view(1, -1, self.args.rnn_hidden_dim))
+        else:
+            agent_outs, hidden_states = self.agent(obs, hidden_states.view(1, -1, self.args.rnn_hidden_dim))
         return agent_outs.view(1, obs.shape[0], -1), hidden_states
    
     def init_hidden(self, batch_size):
@@ -99,13 +103,17 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
 
     # Used for training and propagating the hidden state in stochastic environment, not for action selection
     def forward(self, ep_batch, t, test_mode=False):
-        if ep_batch.batch_size > 1 and t and not t%self.n_agents:
+        if self.joint_hidden and ep_batch.batch_size > 1 and t and not t%self.n_agents:
             for s in range(t-self.n_agents, t):
                 agent_inputs = self._build_inputs(ep_batch["obs"][:, s], ep_batch, s).view(ep_batch.batch_size, -1)
                 agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
 
         agent_inputs = self._build_inputs(ep_batch["obs"][:, t], ep_batch, t).view(ep_batch.batch_size, -1)
-        agent_outs, hidden_states = self.agent(agent_inputs, self.hidden_states)
+        if self.joint_hidden:
+            agent_outs, hidden_states = self.agent(agent_inputs, self.hidden_states)
+        else:
+            agent_outs, self.hidden_states = self.agent(agent_inputs, self.hidden_states)
+            hidden_states = self.hidden_states
         
         return agent_outs.view(ep_batch.batch_size, 1, -1), hidden_states
 
@@ -115,7 +123,8 @@ class MultiAgentPseudoSequntialMAC(BasicMAC):
         #$ TEST
         if (not self.test) and self.action_model.t <= self.action_model.episode_limit * self.n_agents:
             # self.hidden_dic[self.bs, self.action_model.t-s, :] = self.hidden_states.detach()
-            self.hidden_dic[self.bs, (self.action_model.t-self.n_agents):self.action_model.t, :] = self.hidden_states.detach()
+            self.hidden_dic[self.bs, (self.action_model.t-self.n_agents):self.action_model.t, :] = self.hidden_states.detach() #! doesn't work for joint_hidden=False
+        
         for s in range(steps, 0, -1):
             _, self.hidden_states = self.forward(self.action_model.batch, t=self.action_model.t-s)
 

@@ -33,14 +33,14 @@ class TDnLearner(QLearner):
         avail_actions = batch["avail_actions"]
 
         #$ TEST!!
-        # test_dic = th.zeros((self.mac.args.batch_size, self.mac.action_model.episode_limit * self.mac.n_agents + 1, self.mac.args.rnn_hidden_dim))
+        test_dic = th.zeros((self.mac.args.batch_size, self.mac.action_model.episode_limit * self.mac.n_agents + 1, self.mac.args.rnn_hidden_dim))
 
         # Calculate estimated Q-Values
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
             agent_outs, _ = self.mac.forward(batch, t=t)
-            # test_dic[:, t, :] = self.mac.hidden_states.detach()
+            test_dic[:, t, :] = self.mac.hidden_states.detach()
             mac_out.append(agent_outs)
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 

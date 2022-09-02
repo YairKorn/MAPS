@@ -73,7 +73,6 @@ class TabularMAPS(BasicMAC):
                 self.batch["avail_actions"][:, rng, 0],
                 self.batch["reward"][:, rng, 0]
             )
-                #!!!! CHECK THIS !!!!#
 
         return chosen_actions
 

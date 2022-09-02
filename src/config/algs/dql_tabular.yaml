@@ -1,0 +1,17 @@
+# --- "Independence Learners" parameters ---
+name: "dql_tabular"
+
+# use epsilon greedy action selector
+action_selector: "epsilon_greedy"
+epsilon_start: 1.0            # Initial epsilon for exploration
+epsilon_finish: 0.05          # Final epsilon for exploration
+
+# Specify learner, controller and agent
+agent: "ol_tabular"             # A RNN agent that returns its hidden state instead of its value
+agent_output_type: "q"          # The output format is Q-values
+double_q: False                 # DDQN
+learner: "ol_tabular_learner"   # The learner for MAPS
+mac: "dql_tabular"              # The multi-agent controller for MAPS
+mixer:                          # No mixing network for MAPS
+target_update_interval:         # Update the target network every {} episodes
+alpha: 0.3                      # Learning rate for tabular

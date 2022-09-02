@@ -22,4 +22,4 @@ from .tabular_maps import TabularMAPS
 REGISTRY["tabular_maps"] = TabularMAPS
 
 from .tabular_dql import TabularDQL
-REGISTRY["tabular_iql"] = TabularDQL
+REGISTRY["dql_tabular"] = TabularDQL

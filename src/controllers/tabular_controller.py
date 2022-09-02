@@ -13,7 +13,6 @@ class TabularMAC:
         self.agent_output_type = args.agent_output_type
 
         self.action_selector = action_REGISTRY[args.action_selector](args)
-
         self.hidden_states = None
 
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):

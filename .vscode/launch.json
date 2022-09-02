@@ -46,8 +46,8 @@
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=iql_tabular",
-                "--env-config=hunt_trip",
+                "--config=dql_tabular",
+                "--env-config=adv_coverage",
                 "with",
                 "obs_agent_id=True",
                 "-d"

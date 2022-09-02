@@ -10,7 +10,7 @@ epsilon_finish: 0.05          # Final epsilon for exploration
 agent: "ol_tabular"           # A RNN agent that returns its hidden state instead of its value
 agent_output_type: "q"        # The output format is Q-values
 double_q: False               # DDQN
-learner: "maps_tabular_learner" # The learner for MAPS
+learner: "ol_tabular_learner" # The learner for MAPS
 mac: "tabular_maps"           # The multi-agent controller for MAPS
 mixer:                        # No mixing network for MAPS
 target_update_interval:       # Update the target network every {} episodes

@@ -27,24 +27,25 @@ class OnlineTabularAgent():
     
     
     def update_qvalues(self, states, actions, avail_actions, rewards):
-        for i in range(states.shape[0]):
-            lstate = [hash(tuple(s.tolist())) for s in states[i]]
+        for agent in range(states.shape[2]):
+            for i in range(states.shape[0]):
+                lstate = [hash(tuple(s.tolist())) for s in states[i, :, agent]]
 
-            for j in range(len(lstate)-2, -1, -1):
-                if lstate[j+1] in self.qtable:
-                    values = self.qtable[lstate[j+1]].clone()
-                    values[0, avail_actions[i, j+1] == 0] = -1e7
-                else:
-                    values = th.zeros(1, self.n_actions)
+                for j in range(len(lstate)-2, -1, -1):
+                    if lstate[j+1] in self.qtable:
+                        values = self.qtable[lstate[j+1]].clone()
+                        values[0, avail_actions[i, j+1, agent] == 0] = -1e7
+                    else:
+                        values = th.zeros(1, self.n_actions)
 
-                
-                if lstate[j] not in self.qtable:
-                    self.qtable[lstate[j]] = th.zeros(1, self.n_actions)
-                qvalue = self.qtable[lstate[j]]
+                    
+                    if lstate[j] not in self.qtable:
+                        self.qtable[lstate[j]] = th.zeros(1, self.n_actions)
+                    qvalue = self.qtable[lstate[j]]
 
-                target = (1 - self.alpha) * qvalue[0, actions[i, j]] + self.alpha * \
-                    (rewards[i, j] + self.gamma * th.max(values))
-                self.qtable[lstate[j]][0, actions[i, j]] = target
+                    target = (1 - self.alpha) * qvalue[0, actions[i, j, agent]] + self.alpha * \
+                        (rewards[i, j, agent] + self.gamma * th.max(values))
+                    self.qtable[lstate[j]][0, actions[i, j, agent]] = target
 
 
     def save_model(self, path):

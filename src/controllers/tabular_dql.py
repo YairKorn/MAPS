@@ -20,16 +20,15 @@ class TabularDQL(BasicMAC):
 
         # Online learning for the previous timestep
         if not test_mode and t_ep > 0:
-            max_i = th.where(ep_batch["terminated"])[1][0].item() if self.action_model.terminated else 1e7
-            rng = slice(t_ep-1, min(t_ep, max_i)+1)
+            rng = slice(t_ep-1, t_ep+1)
 
             self.agent.update_qvalues(
                 ep_batch["obs"][:, rng , :],
-                ep_batch["actions"][:, rng, 0, 0],
+                ep_batch["actions"][:, rng, :, 0],
                 ep_batch["avail_actions"][:, rng, :],
-                ep_batch["reward"][:, rng, :]
+                ep_batch["reward"][:, rng, :].expand(1, 2, self.n_agents) / self.n_agents
             )
-            #! ADJUST TO EP_BATCH!
+            #! NOTE THAT REWARD IS NOT DECOMPOSED, BUT DIVIDED EQUALLEY AMONG AGENTS
 
         return chosen_actions
 

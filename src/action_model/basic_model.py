@@ -41,6 +41,8 @@ class BasicAM():
         # Buffer for sequential single-agent samples (rather than n-agents samples)
         model_scheme = {
             "obs": scheme["obs"],
+            "state": scheme["state"],
+            "agent": scheme["reward"],
             "actions": scheme["actions"],
             "avail_actions": scheme["avail_actions"],
             "actions_onehot": scheme["avail_actions"],
@@ -103,9 +105,12 @@ class BasicAM():
         terminated = terminated or (self.t_env == self.episode_limit)
         
         # Enter episodes to buffer only if test_mode is False
+        state = dpack[0]['state'].clone().detach().view(-1) #! NOTE: the state is not back-updated!
         if not self.terminated:
             transition_data = {
-                "obs": obs[0], # arbitrary selects one of the observations to store in buffer
+                "obs": obs[0].clone().detach(), # arbitrary selects one of the observations to store in buffer
+                "state": state,
+                "agent": [(agent_id,)],
                 "avail_actions": avail_actions,
                 "actions": [(actions[0, agent_id],)],
                 "actions_onehot": self._one_hot(self.n_actions, actions[0, agent_id]),

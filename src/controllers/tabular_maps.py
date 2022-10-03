@@ -17,8 +17,6 @@ class TabularMAPS(BasicMAC):
         self.action_model = model_REGISTRY[args.env](scheme, args)
         self.cliques = np.empty(0) # count number of single-steps in the previous iteration
 
-        self.qtable = agent_REGISTRY[args.agent](None, args)
-
     ### This function overrides MAC's original function because MAPS selects actions sequentially and select actions cocurrently ###
     def select_actions(self, ep_batch, t_ep, t_env, bs=..., test_mode=False):
         # Update state of the action model based on the results
@@ -68,10 +66,10 @@ class TabularMAPS(BasicMAC):
             rng = slice(self.n_agents*(t_ep-1), min(self.n_agents*t_ep, max_i)+1)
 
             self.agent.update_qvalues(
-                self.batch["obs"][:, rng , 0],
-                self.batch["actions"][:, rng, 0, 0],
-                self.batch["avail_actions"][:, rng, 0],
-                self.batch["reward"][:, rng, 0]
+                self.batch["obs"][:, rng , :],
+                self.batch["actions"][:, rng, :, 0],
+                self.batch["avail_actions"][:, rng, :],
+                self.batch["reward"][:, rng, :]
             )
 
         return chosen_actions

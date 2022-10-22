@@ -48,20 +48,23 @@ def visualize(prefix, window=1, c=None):
         # Calculate average result of this category
         if len(exp) > 1:
             for dir in exp[1:]:
-                # data = json.load(open(os.path.join(dir, "info.json"), 'r'))
-                data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, dir, "info.json"), 'r'))
+                try:
+                    # data = json.load(open(os.path.join(dir, "info.json"), 'r'))
+                    data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, dir, "info.json"), 'r'))
 
-                m_data = np.convolve(np.asarray([d["value"] for d in data["test_return_mean"]]), np.ones(window), 'valid') / window
-                m_data = m_data[:min(test_time.size, m_data.size)] # Trim longer data
-                m_data = np.pad(m_data, (0, test_time.size - m_data.size), 'constant', constant_values=m_data[-1])
+                    m_data = np.convolve(np.asarray([d["value"] for d in data["test_return_mean"]]), np.ones(window), 'valid') / window
+                    m_data = m_data[:min(test_time.size, m_data.size)] # Trim longer data
+                    m_data = np.pad(m_data, (0, test_time.size - m_data.size), 'constant', constant_values=m_data[-1])
 
-                test_mean = np.concatenate((test_mean, np.expand_dims(m_data, axis=0)), axis=0)
+                    test_mean = np.concatenate((test_mean, np.expand_dims(m_data, axis=0)), axis=0)
 
-                s_data = np.convolve(np.asarray([d["value"] for d in data["test_return_std"]]), np.ones(window), 'valid') / window
-                s_data = s_data[:min(test_time.size, s_data.size)] # Trim longer data
-                s_data = np.pad(s_data, (0, test_time.size - s_data.size), 'constant', constant_values=s_data[-1]) # Pad shorter data
+                    s_data = np.convolve(np.asarray([d["value"] for d in data["test_return_std"]]), np.ones(window), 'valid') / window
+                    s_data = s_data[:min(test_time.size, s_data.size)] # Trim longer data
+                    s_data = np.pad(s_data, (0, test_time.size - s_data.size), 'constant', constant_values=s_data[-1]) # Pad shorter data
 
-                test_std = np.concatenate((test_std, np.expand_dims(s_data, axis=0)), axis=0)
+                    test_std = np.concatenate((test_std, np.expand_dims(s_data, axis=0)), axis=0)
+                except:
+                    pass
 
         # average over all results
         test_mean = np.average(test_mean, axis=0)

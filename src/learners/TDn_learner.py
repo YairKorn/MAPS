@@ -30,9 +30,6 @@ class TDnLearner(QLearner):
         mask[:, 1:] = mask[:, 1:] * (1 - terminated[:, :-1])
         avail_actions = batch["avail_actions"]
 
-        #$ Variance Experiment
-        VarDict, EntDict = {}, {}
-
         #$ TEST!!
         test_dic = th.zeros((self.mac.args.batch_size, self.mac.action_model.episode_limit * self.mac.n_agents + 1, self.mac.args.rnn_hidden_dim))
 
@@ -40,59 +37,14 @@ class TDnLearner(QLearner):
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
         for t in range(batch.max_seq_length):
-            #$ Variance Experiment
-            keys = [] #* This variation uses the real *STATE* of the environment
-            for k in range(batch.batch_size):
-                s = batch['obs'][k, t - t%self.mac.n_agents, 0].reshape(self.mac.action_model.height, \
-                    self.mac.action_model.width, -1)[:, :, 1:].reshape(-1)
-                a = th.cat(th.where(batch['state'][k, t - t%self.mac.n_agents].reshape(self.mac.action_model.height, \
-                    self.mac.action_model.width, -1)[:, :, 0] == batch['agent'][k, t] + 1))
-                # keys.append(th.cat((s, a, self.mac.hidden_states[k].clone().detach()), axis=0))
-                keys.append(th.cat((s, a), axis=0))
-
-
-            #* This variation uses the assumed *STATE* of the environment, based on the "previous" agents actions
-            # keys = th.cat((self.mac.action_model.buffer['obs'][:, t, 0], self.mac.hidden_states.clone().detach()), axis=1)
-            keys = [hash(tuple(keys[i].tolist())) for i in range(len(keys))]
-
-            #* Part of the real learner
             agent_outs, _ = self.mac.forward(batch, t=t)
             mac_out.append(agent_outs)
-
-            #$ Variance Experiment
-            agent_advs = agent_outs - agent_outs.mean(dim=-1).unsqueeze(dim=-1).expand_as(agent_outs) #- Calculate advantage rather than q-values
-
-            for k in range(len(keys)):
-                if batch["filled"][k, t]:
-                    # Variance
-                    for a in range(self.mac.n_actions):
-                        if (keys[k], a) in VarDict:
-                            VarDict[(keys[k], a)].append(agent_advs[k, 0, a].item())
-                        else:
-                            VarDict[(keys[k], a)] = [agent_advs[k, 0, a].item()]
-            
-                    # Entropy
-                    if keys[k] not in EntDict:
-                        EntDict[keys[k]] = th.zeros(self.mac.n_actions)
-                    EntDict[keys[k]][th.argmax(agent_advs[k, 0])] += 1
 
             #$ DEBUG
             test_dic[:, t, :] = self.mac.hidden_states.detach()
         
         mac_out = th.stack(mac_out, dim=1)  # Concat over time
 
-        #$ Variance Experiment
-        VarCalc = []
-        for v in VarDict.values():
-            VarCalc.append(th.var(th.tensor(v), unbiased=False))
-        VarTotal = sum(VarCalc) / len(VarCalc)
-
-        EntCalc = []
-        for v in EntDict.values():
-            ect = v.sum()
-            EntCalc.append(-1 * sum([((i/ect) * th.log2(i/ect) if i != 0 else 0) for i in v]))
-        EntTotal = sum(EntCalc) / len(EntCalc)
-        
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = th.gather(mac_out[:, :-1], dim=3, index=actions).squeeze(3)  # Remove the last dim
 
@@ -152,15 +104,14 @@ class TDnLearner(QLearner):
         masked_td_error = td_error * mask
 
         # Normal L2 loss, take mean over actual data
-        loss = (masked_td_error ** 2).sum() / mask.sum()
+        loss = (masked_td_error[1:] ** 2).sum() / mask.sum() #$ ! changed from loss = (masked_td_error ** 2).sum() / mask.sum()
 
         #$ #$ #$ QVALUES TEST $# $# $#
-        # calc_qvalues = mac_out[0, :-1, 0, 6].cpu()
-        # targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
+        calc_qvalues = mac_out[0, :self.mac.n_agents, 0, 6].cpu()
+        targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
 
-        # q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
+        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
         # print(f'Calc: {calc_qvalues.detach()}')
-        # print(f'MC  : {targets[0, :, 0].detach()}')
 
 
         #$ #$ #$   TILL HERE   $# $# $#
@@ -181,10 +132,8 @@ class TDnLearner(QLearner):
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
+            
             #$ #$ QVALUES TEST $# $#
-            # self.logger.log_stat("q_loss", q_loss.item(), t_env)
-
-            #$ Variance Experiment
-            self.logger.log_stat("variance", VarTotal.item(), t_env)
-            self.logger.log_stat("entropy", EntTotal.item(), t_env)
+            self.logger.log_stat("q_loss", q_loss.item(), t_env)
+            
             self.log_stats_t = t_env

@@ -7,7 +7,7 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "T7x7_Medium_2A"     # A specified setup of the environment
+    map: "T6x6_Dist_Paths_2A"     # A specified setup of the environment
     # RECOMMENDED MAPS: T9x9_Hard || T8x8_Hard || T7x7_Hard || T6x6_Hard || T5x5_Hard || T3x3_Basic || S7x7_4Boxes
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
@@ -28,9 +28,8 @@ env_args:
     default_action: 4       # The "do nothing" action
 
     # Enhance performances by controlling the actual risk
-    simulated_mode: 1.0     # if enabled, agents doesn't disabled by threats - 0.0 = no effect; 1.0 = full efect
-    simulation_decay: 0.0   # decay of the simulated mode as part of total time
-    test_simulated: False   # in test episodes turn on/off the simulation mode
+    reduced_punish: 1.0     # factor of the punishment of getting into obstacles; 1.0 = no reduce, 0.0 = fully reduced
+    reduced_decay: 0.0      # decay of the reduced punish as part of total time; 0.0 = no decay
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions

@@ -7,7 +7,7 @@ env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
     obstacles: False        # Obstacles in the grid map
-    map: "Hunt_5x5_Multi"    # A specified setup obstacles in the environment
+    map: "QTest_3Agents"    # A specified setup obstacles in the environment
  
     random_config: False    # if enabled (True), obtacles are located randomly (override map), based on:
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
@@ -34,7 +34,7 @@ env_args:
     # Logging options
     log_env: False          # collect and print log of agents performance
 
-    episode_limit: 100      # maximum number of time steps per episode
+    episode_limit: 3      # maximum number of time steps per episode
 
 t_max: 1250000              # number of time steps of the experiment
 

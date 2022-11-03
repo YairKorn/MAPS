@@ -81,8 +81,8 @@ class AdversarialCoverage(MultiAgentEnv):
                     self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
 
         self.episode_limit = args.episode_limit
-        self.simulated_mode = getattr(args, "simulated_mode", 0.0) # never disable a robot but give a negative reward for entering a threat
-        self.test_simulated = getattr(args, "test_simulated", False)
+        self.reduced_punish = getattr(args, "reduced_punish", 0.0) # never disable a robot but give a negative reward for entering a threat
+        self.reduced_decay = getattr(args, "reduced_decay", False)
 
         # Observation properties
         self.observe_state = getattr(args, "observe_state", False)
@@ -162,12 +162,12 @@ class AdversarialCoverage(MultiAgentEnv):
             self.test_mode = kwargs['test_mode']
             self.nepisode  = kwargs['test_nepisode']
 
-            # SIM FACTOR gradually increases the threats in the area
-            if not self.test_mode or self.test_simulated:
-                self.sim_factor = min(1 - (1.0 - self.simulated_mode) * (1 - kwargs['t_env'] / (kwargs['t_max'] * self.args.simulation_decay)), 1.0) \
-                    if self.args.simulation_decay > 0 else self.simulated_mode
+            # PUNISH FACTOR gradually increases the threats in the area
+            if not self.test_mode:
+                self.threat_factor = min(1 - (1.0 - self.reduced_punish) * (1 - kwargs['t_env'] / (kwargs['t_max'] * self.args.reduced_decay)), 1.0) \
+                    if self.args.reduced_decay > 0 else self.reduced_punish
             else:
-                self.sim_factor = 1.0
+                self.threat_factor = 1.0
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
@@ -194,14 +194,14 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Threats reward - indicate for the agents that they are in danger
         e = np.where(self.agents_enabled == 1)[0] # enabled agents
-        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2])
+        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2]) * self.threat_factor
         covered = np.sum(self.grid[:, :, 1])
         alive_agents = e.size
 
         reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2] * self.sim_factor
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
 

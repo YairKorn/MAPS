@@ -26,25 +26,31 @@ def rename_dir(skip=2, prefix='', fields=None):
     experiments = [os.path.join(PATH, d) for d in dirs[:len(dirs)-skip]]
 
     for e in experiments:
-        with open(os.path.join(e, 'config.json')) as f:
-            config = json.load(f)
+        try:
+            with open(os.path.join(e, 'config.json')) as f:
+                config = json.load(f)
 
-        # New name: _alg#_args#_date
-        _path = os.path.join("results", "sacred", config["env_args"]["map"])
-        if not os.path.exists(_path):
-            os.mkdir(_path)
+            # New name: _alg#_args#_date
+            _path = os.path.join("results", "sacred", config["env_args"]["map"])
+            if not os.path.exists(_path):
+                os.mkdir(_path)
 
-        _alg  = prefix + config["name"].upper()
-        _date = datetime.fromtimestamp(os.path.getctime(e)).strftime("%Y-%m-%d-%H:%M:%S")
+            _alg  = prefix + config["name"].upper()
+            _date = datetime.fromtimestamp(os.path.getctime(e)).strftime("%Y-%m-%d-%H:%M:%S")
+            
+            config = flatten(config)
+            if fields:
+                _args = '&'.join([f'{f}={config[f]}' if f in config else '' for f in fields])
+                _name = '#'.join([_alg, _args, _date])
+            else:
+                _name = '#'.join([_alg, _date])
+            
+            os.rename(e, os.path.join(PATH, _name))
         
-        config = flatten(config)
-        _args = '&'.join([f'{f}={config[f]}' if f in config else '' for f in fields])
-        
-        _name = '#'.join([_alg, _args, _date])
-        os.rename(e, os.path.join(PATH, _name))
-    
-        shutil.move(os.path.join(PATH, _name), os.path.join(_path, _name))
-        # os.rename(e_new, os.path.join(_path, _name))
+            shutil.move(os.path.join(PATH, _name), os.path.join(_path, _name))
+            # os.rename(e_new, os.path.join(_path, _name))
+        except:
+            print(f"Failed to rename {e}")
 
 def make_parser():
     parser = ArgumentParser(description="Arguments for rename experiments")

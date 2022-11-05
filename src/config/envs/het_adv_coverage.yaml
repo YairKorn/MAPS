@@ -1,19 +1,19 @@
 # Coverage environment for experiments of MAPS, including:
-#   1. Standard coverage (n agents in grid world)
-#   2. Adversarial coverage (with threat in the world) - stochastic world
+#   1. Standard coverage (n agents in grid world) - deterministic world
+#   2. Adversarial coverage (with threat in grid world) - stochastic world
 
 env: "mrac"            # a grid-world for adversarial coverage
 
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "T6x6_Simple"                  # A specified setup of the environment
-    # RECOMMENDED MAPS: Threat_8x8_Hard || Threat_7x7_Hard || Threat_6x6_Medium || Threat_5x5_Hard
+    map: "T6x6_Dist_Paths_2A"     # A specified setup of the environment
+    # RECOMMENDED MAPS: T9x9_Hard || T8x8_Hard || T7x7_Hard || T6x6_Hard || T5x5_Hard || T3x3_Basic || S7x7_4Boxes
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
     shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
-    threats_rate: 0.0       # ... percentage of the area contains threats using normal distribution with
+    threats_rate: 0.0       # ... percentage of the area contains threats using normal distribution with:
     risk_avg: 0.2           # ... ... average of threats risk
     risk_std: 0.2           # ... ... standard deviation of threats risk
 
@@ -27,14 +27,16 @@ env_args:
     allow_stay: True        # does agents can do "nothing action"
     default_action: 4       # The "do nothing" action
 
-    simulated_mode: False   # if enabled, agents doesn't disabled by threats
+    # Enhance performances by controlling the actual risk
+    reduced_punish: 1.0     # factor of the punishment of getting into obstacles; 1.0 = no reduce, 0.0 = fully reduced
+    reduced_decay: 0.0      # decay of the reduced punish as part of total time; 0.0 = no decay
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
     reward_succes: 0.0      # positive reward given if grid is fully covered
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
-    reward_time: -1.0       # negative reward for every timestep
+    reward_time: -1.0       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
 
     # Logging options
     log_env: True           # collect and print log of agents performance

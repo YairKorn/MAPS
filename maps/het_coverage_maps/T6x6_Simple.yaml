@@ -1,7 +1,7 @@
 # A map for advarserial coverage environment
 
 agents_placement: [[0, 0], [5, 5]]    # if random_placement is False, location can be specified
-agent_types: [0, 1]
+agents_type: [0, 1]
 n_agents: 2
 
 # Threats are defined as follows: [X, Y]

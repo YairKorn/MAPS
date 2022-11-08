@@ -61,6 +61,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         self.threats_rate   = getattr(args, "threats_rate", 0.2)
         self.risk_avg       = getattr(args, "risk_avg", 0.2)
         self.risk_std       = getattr(args, "risk_std", 0.2)
+        self.risk_types     = getattr(args, "risk_types", 0.2)
 
         # place obstacles and threats in the area
         # het_grid is a multi-layer grid, each layer corresponds to a type of agents
@@ -151,9 +152,9 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
 
         # If "shuffle_config" mode in on, the area is changed every episode (obstacles and threats)
         if self.shuffle_config:
-            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+            self.grid[:, :, -1] = self._place_obstacles(self.obstacle_rate)
             #! DOESN'T UPDATE TO THE HETEROGENEOUS VERSION
-            # self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std, self.n_agents_types)
+            self.het_grid  = self._place_threats(self.threats_rate, self.risk_avg, self.risk_std, self.n_agents_types, self.risk_types)
             self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
 
         # Place agents & set obstacles to marked as "covered"
@@ -258,8 +259,8 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
 
     # Return the full state (privileged knowledge)
     def get_state(self):
-        # State layers: agents (layer per type) | coverage status | obstacles | n_agents-layers of threats per agent (by ID)
-        return np.concatenate((self.grid, self.het_grid[:, :, self.agents_type]), axis=2).reshape(-1)
+        # State layers: agents (layer per type) | coverage status | obstacles | n_agents-layers of threats per agent type
+        return np.concatenate((self.grid, self.het_grid), axis=2).reshape(-1)
 
     # There are 2 observation modes:
     #   1. Fully-observable (the whole area is observed) - observation_range = -1
@@ -283,7 +284,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
 
         # Remove agents' id from observation, based on the configuration selected
         if not self.observe_ids: 
-            observation[:, :, 0] = (observation[:, :, 0] != 0)
+            observation[:, :, :self.n_agents_types] = (observation[:, :, :self.n_agents_types] != 0)
 
         # Add agent's location (one-hot)
         one_hot = np.expand_dims(np.zeros_like(observation[:, :, 0]), axis=2)
@@ -348,13 +349,13 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         while True:
             for _ in range(num_trials):
                 # Place obstacles randomly in the grid
-                map_grid = -1 * (np.random.rand(self.height, self.width) < obstacle_rate)
-                if -1 * np.sum(map_grid) + self.n_agents >= map_grid.size: # not enough place for the agents 
+                map_grid = (np.random.rand(self.height, self.width) < obstacle_rate)
+                if np.sum(map_grid) + self.n_agents >= map_grid.size: # not enough place for the agents 
                     continue
 
                 # Check that the obstacles distribution is valid
-                test_grid = np.pad(map_grid, 1, constant_values=-1)
-                root = np.stack(np.where(test_grid != -1)).transpose()[0, :]
+                test_grid = np.pad(map_grid, 1, constant_values=1)
+                root = np.stack(np.where(test_grid != 1)).transpose()[0, :]
                 test_grid[root[0], root[1]] = 1 # mark root as visited
 
                 q = queue() # queue for BFS (find if the grid is reachable)
@@ -367,23 +368,25 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
                     test_grid[neighbors[:, 0], neighbors[:, 1]] = 1 # mark as visited
                     list(map(q.append, neighbors)) # add free-cell neighbors into queue
 
-                if np.sum(np.absolute(test_grid[1:-1, 1:-1])) == self.n_cells: # obstacles (-1) + reachable cells (1) == grid size, i.e., the grid is reachable
+                if np.sum(test_grid[1:-1, 1:-1]) == self.n_cells: # obstacles (-1) + reachable cells (1) == grid size, i.e., the grid is reachable
                     return map_grid
 
             obstacle_rate *= 0.9 # reduce the obstacle rate because the current rate does not allow to create reachable environment
             print(f"INFO: Cannot create reachable environemnt, reduce obstacle rate to {obstacle_rate}")
 
-    def _place_threats(self, threats_rate, risk_avg, risk_std, agent_types, risk_types=3): # PV: change the number of risk types in configuration 
+    def _place_threats(self, threats_rate, risk_avg, risk_std, agent_types, risk_types): # PV: change the number of risk types in configuration 
         avail_cell = np.asarray(self.grid[:, :, -1] != 1, dtype=np.int16) # free cells
         
         # normalize the threat_rate s.t. rate is relative to free cells and not the whole grid
         map_grid = avail_cell * (np.random.rand(self.height, self.width) < threats_rate * (avail_cell.size/np.sum(avail_cell)))
         map_grid = np.maximum(np.minimum(map_grid * np.random.normal(loc=risk_avg, scale=risk_std, size=map_grid.shape), 1), 0) # place threats using truncated normal distribution
-        
-        #! DOES NOT UPDATED FOR HETEROGENEOUS CASE - IN THIS CASE IT NEEDS TO RETURN THE WHOLE het_grid
-        # np.random.uniform(0, 1, (agent_types, risk_types))
 
-        return map_grid
+        #! DOES NOT UPDATED FOR HETEROGENEOUS CASE - IN THIS CASE IT NEEDS TO RETURN THE WHOLE het_grid
+        type_grid = np.random.randint(0, risk_types, size=map_grid.shape)
+        types_matrix = np.random.uniform(0, 1, (agent_types, risk_types))
+
+        tmp = types_matrix[:, type_grid] * map_grid
+        return np.stack((tmp[0], tmp[1]), axis=2)
 
     def _place_agents(self):
         # Random placement - select random free cells for initiating the agents

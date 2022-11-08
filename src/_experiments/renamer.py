@@ -40,7 +40,12 @@ def rename_dir(skip=2, prefix='', fields=None):
             
             config = flatten(config)
             if fields:
-                _args = '&'.join([f'{f}={config[f]}' if f in config else '' for f in fields])
+                _args = []
+                for f in fields:
+                    tmp_arg, tmp_name = f.split('=') if '=' in f else (f, f)
+                    _args.append(f'{tmp_name}={config[tmp_arg]}' if tmp_arg in config else '')
+                    # _args = '&'.join([f'{f}={config[f]}' if f in config else '' for f in fields])
+                _args = '&'.join(_args)
                 _name = '#'.join([_alg, _args, _date])
             else:
                 _name = '#'.join([_alg, _date])
@@ -62,4 +67,4 @@ def make_parser():
 if __name__ == '__main__':
     args = make_parser().parse_args()
     rename_dir(args.skip, args.prefix, args.f)
-    # rename_dir(0, '', ['env_args_simulated_mode']) #! DEBUG
+    # rename_dir(0, '', ['env_args_reduced_decay=decay']) #! DEBUG

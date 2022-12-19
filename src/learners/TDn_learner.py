@@ -104,17 +104,8 @@ class TDnLearner(QLearner):
         masked_td_error = td_error * mask
 
         # Normal L2 loss, take mean over actual data
-        loss = (masked_td_error[1:] ** 2).sum() / mask.sum() #$ ! changed from loss = (masked_td_error ** 2).sum() / mask.sum()
+        loss = (masked_td_error ** 2).sum() / mask.sum()
 
-        #$ #$ #$ QVALUES TEST $# $# $#
-        calc_qvalues = mac_out[0, :self.mac.n_agents, 0, 6].cpu()
-        targ_qvalues = th.arange(self.mac.n_agents, 0, -1) * (self.mac.action_model.reward_hunt + self.mac.action_model.reward_catch)
-
-        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
-        # print(f'Calc: {calc_qvalues.detach()}')
-
-
-        #$ #$ #$   TILL HERE   $# $# $#
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()
@@ -132,8 +123,4 @@ class TDnLearner(QLearner):
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
-            
-            #$ #$ QVALUES TEST $# $#
-            self.logger.log_stat("q_loss", q_loss.item(), t_env)
-            
             self.log_stats_t = t_env

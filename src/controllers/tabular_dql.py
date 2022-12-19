@@ -29,7 +29,7 @@ class TabularDQL(BasicMAC):
                 ep_batch["reward"][:, rng, :].expand(1, 2, self.n_agents) / self.n_agents
             )
             #! NOTE THAT REWARD IS NOT DECOMPOSED, BUT DIVIDED EQUALLEY AMONG AGENTS
-
+            
         return chosen_actions
 
     def _build_inputs(self, batch, t):

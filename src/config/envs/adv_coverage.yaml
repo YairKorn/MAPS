@@ -7,7 +7,7 @@ env: "mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "T6x6_Dist_Paths_2A"     # A specified setup of the environment
+    map: "Random_Single_Map1"     # A specified setup of the environment
     # RECOMMENDED MAPS: T9x9_Hard || T8x8_Hard || T7x7_Hard || T6x6_Hard || T5x5_Hard || T3x3_Basic || S7x7_4Boxes
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
@@ -24,19 +24,21 @@ env_args:
     watch_surface: True     # observe where obstacles and threat are located
 
     allow_collisions: False # "True" allow two agents to be in the same cell
-    allow_stay: True        # does agents can do "nothing action"
+    allow_stay: False       # does agents can do "nothing action"
     default_action: 4       # The "do nothing" action
 
     # Enhance performances by controlling the actual risk
     reduced_punish: 1.0     # factor of the punishment of getting into obstacles; 1.0 = no reduce, 0.0 = fully reduced
     reduced_decay: 0.0      # decay of the reduced punish as part of total time; 0.0 = no decay
+    reduced_shape: 'decay'  # 'decay' of 'cutoff'
+    simulated_mode: True   # Deactivate threats in the environment (agents are rewarded but are not being disabled)
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
-    reward_succes: 0.0      # positive reward given if grid is fully covered
+    reward_succes: 25.0     # positive reward given if grid is fully covered
     reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
-    reward_time: -1.0       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
+    reward_time: -0.2       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
 
     # Logging options
     log_env: True           # collect and print log of agents performance

@@ -3,7 +3,7 @@
 
 # Exclude the results that you may have produced in past experiments
 results/
-test_*.sh
+test_*.*
 
 # Exclude libraries etc.
 tb_logs/

@@ -20,7 +20,11 @@ from utils.dict2namedtuple import convert
 from collections import deque as queue
 import numpy as np
 np.set_printoptions(precision=2)
+
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings( "ignore", module = "matplotlib\..*" )
+
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
 
 class AdversarialCoverage(MultiAgentEnv):
@@ -39,7 +43,7 @@ class AdversarialCoverage(MultiAgentEnv):
             print(map_config)
             for k, v in map_config.items():
                 args[k] = v
-        
+
         # convert to GenericDictionary
         if isinstance(args, dict):
             args = convert(args)
@@ -83,6 +87,8 @@ class AdversarialCoverage(MultiAgentEnv):
         self.episode_limit = args.episode_limit
         self.reduced_punish = getattr(args, "reduced_punish", 0.0) # never disable a robot but give a negative reward for entering a threat
         self.reduced_decay = getattr(args, "reduced_decay", False)
+        self.reduced_shape = getattr(args, 'reduced_shape', 'decay')
+        self.simulated_mode = getattr(args, 'simulated_mode', False)
 
         # Observation properties
         self.observe_state = getattr(args, "observe_state", False)
@@ -97,7 +103,7 @@ class AdversarialCoverage(MultiAgentEnv):
         
         # Agents' action space
         self.allow_stay = getattr(args, "allow_stay", True)
-        self.n_actions = 4 + self.allow_stay
+        self.n_actions = 5 #4 + self.allow_stay
         self.avail_actions = np.pad(self.grid[:, :, 2], 1, constant_values=(self.toroidal - 1))
         self.random_placement = getattr(args, "random_placement", True) # random placements of the robots every episode, override "agent_placement"
         
@@ -158,16 +164,25 @@ class AdversarialCoverage(MultiAgentEnv):
         if self.obstacles.size > 0:
             self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
 
+        # self.threat_factor = 1.0
         if kwargs:
             self.test_mode = kwargs['test_mode']
             self.nepisode  = kwargs['test_nepisode']
 
             # PUNISH FACTOR gradually increases the threats in the area
             if not self.test_mode:
-                self.threat_factor = min(1 - (1.0 - self.reduced_punish) * (1 - kwargs['t_env'] / (kwargs['t_max'] * self.args.reduced_decay)), 1.0) \
-                    if self.args.reduced_decay > 0 else self.reduced_punish
+                if self.reduced_shape == 'decay':
+                    self.threat_factor = min(1 - (1.0 - self.reduced_punish) * (1 - kwargs['t_env'] / (kwargs['t_max'] * self.args.reduced_decay)), 1.0) \
+                        if self.args.reduced_decay > 0 else self.reduced_punish
+                elif self.reduced_shape == 'cutoff':
+                    self.threat_factor = self.reduced_punish if (kwargs['t_env'] / kwargs['t_max']) < self.args.reduced_decay else 1.0
+                else:
+                    raise "Invalid reduced reward function"
             else:
                 self.threat_factor = 1.0
+            self.simulated_mode = getattr(self.args, 'simulated_mode', False) * (not self.test_mode)
+            self.succes_reward = getattr(self.args, 'reward_succes', False) * (not self.test_mode)
+            # print(f"Threat factor: {self.threat_factor}")
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
@@ -201,7 +216,7 @@ class AdversarialCoverage(MultiAgentEnv):
         reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2]
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2] * (1 - self.simulated_mode)
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
 
@@ -210,7 +225,9 @@ class AdversarialCoverage(MultiAgentEnv):
 
         mission_succes = np.sum(self.grid[:, :, 1]) == self.n_cells
         reward += mission_succes * self.succes_reward
-
+        if mission_succes:
+            print(f"Mode: {'Test    ' if self.test_mode else 'Training'} | Coverage was completed! | Reward={reward}")
+        
         self.steps += 1
         self.sum_rewards += reward
 
@@ -238,9 +255,9 @@ class AdversarialCoverage(MultiAgentEnv):
 
             next_location = self.agents[agent] + avail_actions.reshape(-1, 1) * self.action_effect
             avail_actions = self.grid[next_location[:, 0], next_location[:, 1], 0] == 0
-            avail_actions[-1] = True
+            avail_actions[-1] = self.allow_stay or (not self.agents_enabled[agent])
         
-        return avail_actions[:self.n_actions]
+        return avail_actions
 
     def close(self):
         if self.args.visualize:

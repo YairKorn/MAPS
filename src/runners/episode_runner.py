@@ -24,6 +24,9 @@ class EpisodeRunner:
         self.train_stats = {}
         self.test_stats = {}
 
+        # Added for testing the optimization criteria of adv_coverage directly into the logger
+        self.cov_stats = []
+
         # Log the first run
         self.log_train_stats_t = -1000000
 
@@ -105,6 +108,10 @@ class EpisodeRunner:
         cur_stats.update({k: cur_stats.get(k, 0) + env_info.get(k, 0) for k in set(cur_stats) | set(env_info)})
         cur_stats["n_episodes"] = 1 + cur_stats.get("n_episodes", 0)
         cur_stats["ep_length"] = self.t + cur_stats.get("ep_length", 0)
+        
+        # Added for testing the optimization criteria of adv_coverage directly into the logger
+        if test_mode and 'log_env' in self.args.env_args and self.args.env_args['log_env']:
+            self.cov_stats.append(((np.abs(self.env.grid[:, :, -1]) != 1) * self.env.grid[:, :, -2]).sum() + self.env.time_reward * self.t) 
 
         if not test_mode:
             self.t_env += self.t
@@ -113,6 +120,13 @@ class EpisodeRunner:
 
         if test_mode and (len(self.test_returns) == self.args.test_nepisode):
             self._log(cur_returns, cur_stats, log_prefix)
+
+            # Added for testing the optimization criteria of adv_coverage directly into the logger
+            if 'log_env' in self.args.env_args and self.args.env_args['log_env']:
+                self.logger.log_stat("criteria_mean", np.mean(self.cov_stats), self.t_env)
+                self.logger.log_stat("criteria_std", np.std(self.cov_stats), self.t_env)
+                self.cov_stats.clear()
+
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
             self._log(cur_returns, cur_stats, log_prefix)
             if hasattr(self.mac.action_selector, "epsilon"):

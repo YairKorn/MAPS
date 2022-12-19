@@ -1,0 +1,19 @@
+# A map for advarserial coverage environment
+
+agents_placement: [[3, 4], [5, 5], [3, 7]]
+n_agents: 3
+obstacles_location: [[0, 0], [0, 1], [0, 4], [0, 6], [0, 7], [1, 7], [2, 0], [2, 3], [3, 6], [4, 1], [5, 4], [6, 1], [6, 6], [7, 3], [7, 5]]
+threat_location: [[1, 3, 0.13],
+ [2, 4, 0.27],
+ [2, 5, 0.34],
+ [3, 1, 0.6 ],
+ [3, 4, 0.6 ],
+ [3, 5, 0.2 ],
+ [4, 4, 0.69],
+ [4, 5, 0.07],
+ [5, 0, 0.77],
+ [6, 0, 0.61],
+ [7, 4, 0.07]]
+torodial: False
+world_shape: [8, 8]
+random_placement: False

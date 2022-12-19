@@ -4,7 +4,7 @@ import numpy as np
 from .tabular_learner import TabularLearner
 from components.episode_buffer import EpisodeBatch
 
-class DQLTabularLearner(TabularLearner):
+class QTabularLearner(TabularLearner):
     def __init__(self, mac, scheme, logger, args):
         super().__init__(mac, scheme, logger, args)
         self.buffer = self.mac.action_model.buffer

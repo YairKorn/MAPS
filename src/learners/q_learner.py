@@ -4,6 +4,7 @@ from modules.mixers.vdn import VDNMixer
 from modules.mixers.qmix import QMixer
 import torch as th
 from torch.optim import RMSprop
+from tabulate import tabulate
 
 
 class QLearner:
@@ -96,15 +97,6 @@ class QLearner:
         # Normal L2 loss, take mean over actual data
         loss = (masked_td_error ** 2).sum() / mask.sum()
 
-        #$ #$ #$ QVALUES TEST $# $# $#
-        calc_qvalues = mac_out[0, 0, :, 6].cpu()
-        targ_qvalues = th.ones(self.mac.n_agents) * 10 # The reward for succes hunt
-
-        q_loss = ((calc_qvalues - targ_qvalues) ** 2).sum() / calc_qvalues.numel()
-        # print(f'Calc: {calc_qvalues.detach()}')
-
-        #$ #$ #$   TILL HERE   $# $# $#
-
         # Optimise
         self.optimiser.zero_grad()
         loss.backward()
@@ -122,9 +114,6 @@ class QLearner:
             self.logger.log_stat("td_error_abs", (masked_td_error.abs().sum().item()/mask_elems), t_env)
             self.logger.log_stat("q_taken_mean", (chosen_action_qvals * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
             self.logger.log_stat("target_mean", (targets * mask).sum().item()/(mask_elems * self.args.n_agents), t_env)
-
-            #$ #$ QVALUES TEST $# $#
-            self.logger.log_stat("q_loss", q_loss.item(), t_env)
 
             self.log_stats_t = t_env
 
@@ -154,3 +143,17 @@ class QLearner:
         if self.mixer is not None:
             self.mixer.load_state_dict(th.load("{}/mixer.th".format(path), map_location=lambda storage, loc: storage))
         self.optimiser.load_state_dict(th.load("{}/opt.th".format(path), map_location=lambda storage, loc: storage))
+
+    #$ DEBUG: Plot the sequence of q-values for the whole episode
+    def values_seq(self, batch, qvals, ep):
+        values_data =[]
+        headers = ['Time', 'Q-Values', 'Max Q-value', 'Avail Actions', 'Action', 'Reward']
+
+        for t in range(batch["filled"][ep].sum()): #!
+            values = qvals[ep, t, 0]
+            reward = batch['reward'][ep, t, 0]
+            action = batch["actions"][ep, t, 0, 0]
+            avail_actions = th.where(batch["avail_actions"][ep, t, 0, :])[0].cpu().tolist()
+            # if len(avail_actions) > 0:
+            values_data.append([t, values.data, th.max(values[avail_actions]), avail_actions, action, reward])
+        print(tabulate(values_data, headers=headers, numalign='center', tablefmt="github"))

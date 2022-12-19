@@ -19,7 +19,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=maps",
-                "--env-config=hunt_trip",
+                "--env-config=adv_coverage",
                 "with",
                 "obs_agent_id=False",
                 "-d"
@@ -68,14 +68,14 @@
             ]
         },
         {
-            "name": "PyMARL_VDN",
+            "name": "PyMARL_IQL",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=vdn",
-                "--env-config=hunt_trip",
+                "--config=iql",
+                "--env-config=adv_coverage",
                 "with",
                 "obs_agent_id=True",
                 "-d"

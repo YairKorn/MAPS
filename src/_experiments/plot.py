@@ -12,7 +12,7 @@ def visualize(prefix, window=1, c=None):
     # labels = [x.split('/')[-1].replace(prefix + '#', '') for x in experiments]
 
     experiments = os.listdir(os.path.join(os.getcwd(), 'results', 'sacred', prefix))
-
+    experiments.sort()
 
     if c is None:
         c = experiments
@@ -93,4 +93,4 @@ if __name__ == "__main__":
     # Experiments on the same environment and plotted together
     args = make_parser().parse_args()
     visualize(args.prefix, args.window, args.c)
-    # visualize('S7x7_4Boxes', 1) # Debug
+    # visualize('Random_Single_Map3_alpha=0.2_7e5', 5, ['No_Threat_Reward', 'Decay=0.5', 'Decay=0.8', 'Sim_Mode']) # Debug

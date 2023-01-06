@@ -54,13 +54,13 @@
             ],
         },
         {
-            "name": "PyMARL_DCG",
+            "name": "PyMARL_PPO",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=dcg",
+                "--config=ppo",
                 "--env-config=adv_coverage",
                 "with",
                 "obs_agent_id=True",

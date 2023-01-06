@@ -58,7 +58,7 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Initialization
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
-        self.grid = np.zeros((self.height, self.width, 3), dtype=np.float16)
+        self.grid = np.zeros((self.height, self.width, 4), dtype=np.float16)
         self.n_cells = self.grid[:, :, 0].size
         # grid structure: agent locations | coverage status | surface
         
@@ -72,7 +72,7 @@ class AdversarialCoverage(MultiAgentEnv):
         if not self.shuffle_config:
             if getattr(args, "random_config", False): # random configuration - only once
                 self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
-                self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
+                self.grid[:, :, 3] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
                 self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
             else: # place ocnfiguration from configuration file
                 self.obstacles = np.asarray(getattr(args, "obstacles_location", []))
@@ -82,7 +82,7 @@ class AdversarialCoverage(MultiAgentEnv):
                 threats = np.asarray(getattr(args, "threat_location", []))
                 if threats.size > 0:
                     threats_location = np.asarray(threats[:, :2], dtype=np.int16)
-                    self.grid[threats_location[:, 0], threats_location[:, 1], 2] = threats[:, 2]
+                    self.grid[threats_location[:, 0], threats_location[:, 1], 3] = threats[:, 2]
 
         self.episode_limit = args.episode_limit
         self.reduced_punish = getattr(args, "reduced_punish", 0.0) # never disable a robot but give a negative reward for entering a threat
@@ -96,7 +96,7 @@ class AdversarialCoverage(MultiAgentEnv):
         self.watch_covered = getattr(args, "watch_covered", True)
         self.watch_surface = getattr(args, "watch_surface", True)
         self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
-        self.n_features = 1 + self.watch_covered + self.watch_surface # changable features, does not includes the location
+        self.n_features = 1 + self.watch_covered + 2 * self.watch_surface # changable features, does not includes the location
         
         self.state_size = self.grid.size
         self.obs_size = self.n_cells + self.n_features * (self.n_cells if self.observation_range < 0 else (2 * self.observation_range + 1) ** 2)
@@ -154,7 +154,7 @@ class AdversarialCoverage(MultiAgentEnv):
         # If "shuffle_config" mode in on, the area is changed every episode (obstacles and threats)
         if self.shuffle_config:
             self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
-            self.grid[:, :, 2] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
+            self.grid[:, :, 3] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
             self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
 
         # Place agents & set obstacles to marked as "covered"
@@ -209,14 +209,14 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # Threats reward - indicate for the agents that they are in danger
         e = np.where(self.agents_enabled == 1)[0] # enabled agents
-        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 2]) * self.threat_factor
+        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 3]) * self.threat_factor
         covered = np.sum(self.grid[:, :, 1])
         alive_agents = e.size
 
         reward += (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 2] * (1 - self.simulated_mode)
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 3] * (1 - self.simulated_mode)
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
 
@@ -282,7 +282,7 @@ class AdversarialCoverage(MultiAgentEnv):
     #   2. Partial-observability with absolute location (location of agent is marked on the map)
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
+        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface, 3 * self.watch_surface])
 
         # Observation-mode 1 - return the whole grid
         if self.observation_range < 0:
@@ -433,7 +433,7 @@ class AdversarialCoverage(MultiAgentEnv):
         os.makedirs(result_path)
 
         # Print threats on the map
-        textmap = [[str(self.grid[i, j, 2]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]
+        textmap = [[str(self.grid[i, j, 3]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]
         steps_pad = int(np.log10(len(self.log_collector))) + 1
 
         # Per frame, restore the relevant stat and draw it using colormap

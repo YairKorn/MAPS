@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # TODO: change network from DNN to RNN
+#! Activation function - ReLU vs tanh
 class PPOCritic(nn.Module):
     def __init__(self, scheme, args):
         super(PPOCritic, self).__init__()
@@ -15,9 +16,9 @@ class PPOCritic(nn.Module):
         self.output_type = "q"
 
         # Set up network layers
-        self.fc1 = nn.Linear(input_shape, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, self.n_actions)
+        self.fc1 = nn.Linear(input_shape, args.rnn_hidden_dim) # I know it's not a RNN however I don't care
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        self.fc3 = nn.Linear(args.rnn_hidden_dim, 1)
 
     def forward(self, batch, t=None):
         inputs = self._build_inputs(batch, t=t)

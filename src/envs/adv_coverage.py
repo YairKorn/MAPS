@@ -433,7 +433,7 @@ class AdversarialCoverage(MultiAgentEnv):
         os.makedirs(result_path)
 
         # Print threats on the map
-        textmap = [[str(self.grid[i, j, 3]) if self.grid[i, j, 2] > 0 else "" for j in range(self.width)] for i in range(self.height)]
+        textmap = [[str(self.grid[i, j, 3]) if self.grid[i, j, 3] > 0 else "" for j in range(self.width)] for i in range(self.height)]
         steps_pad = int(np.log10(len(self.log_collector))) + 1
 
         # Per frame, restore the relevant stat and draw it using colormap

@@ -14,15 +14,20 @@ runner: "episode" # consider parallel?
 
 lr: 0.0005
 critic_lr: 0.0005
-td_lambda: 0.8
 actor_train_reps: 1
+critic_td: True
+adv_norm: True
 
+epochs: 5
+clip_coef: 0.2
+ent_coefficient: 0.1
 # update the target network every {} episodes
-target_update_interval: 200
+target_update_interval: 100
 
 # use the Q_Learner to train
 agent_output_type: "pi_logits"
 learner: "ppo_learner"
+optimizer: "RMSProp" #"Adam"
 double_q: True
 mixer: # Mixer becomes None
 

@@ -32,3 +32,5 @@ double_q: True
 mixer: # Mixer becomes None
 
 name: "ppo"
+
+l = (real loss) - coefficient * (kl divergence)

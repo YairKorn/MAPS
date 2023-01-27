@@ -11,7 +11,6 @@ from .__optimizers__ import Optimizer
 $3. Do I need to calculate the ratio between adjacent episodes?
 
 ? OPTIONS:
-* Debug TD critic
 * Increased or time-dependent entropy
 * Calibrate clip coefficient
 * RNN critic?

@@ -1,5 +1,6 @@
 import numpy as np
 from mrac_utils import *
+from scipy.optimize import linear_sum_assignment
 
 # Aid constants
 LEVELS = 4      # No. tiers of threats
@@ -49,8 +50,17 @@ def assign_areas_to_robots(areas: list[Area], robots: list[Robot]):
                 break
 
     # Split areas with more than one robot assigned
-    for area in areas:
-        area.split_area_between_robots()
+    for area in areas.copy():
+        if len(area.assigned) > 1:
+            subareas = area.split_area_between_robots(map)
+            costs = np.array([robot.find_best_path_to_areas(subareas) for robot in area.assigned])
+
+            for subarea, i in zip(subareas, linear_sum_assignment(costs)[1]):
+                assign_robot_area(subarea, area.assigned[i])
+            areas.remove(area)
+            areas = subareas + areas
+    
+    return areas
 
 
 if __name__ == '__main__':
@@ -59,9 +69,16 @@ if __name__ == '__main__':
 
     # Pre-processing of the map
     areas_list = areas_creation(map, num_levels=LEVELS)
-    assign_areas_to_robots(areas_list, robots)
+    areas_list = assign_areas_to_robots(areas_list, robots)
+
+    for robot in robots:
+        robot.calc_path_to_area()
 
     # Running loop
     time = 0
     while True: # update
+        # for... robot.step() #$ SHOULD PERFORM THE COVERAGE AND RETURN STATUS
+        # handling case of robot hit and finished
+        # manage time and coverage percentage to calculate optimization criteria
+        
         break # update

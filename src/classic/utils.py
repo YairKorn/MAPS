@@ -4,10 +4,12 @@ from collections import defaultdict
 VALID_ACTIONS = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
 
 # Calculate the best path and entrace point to a specific area
-def area_Dijkstra(grid, source, cells):
+# Returns the path in a list format
+def target_Dijkstra(grid, source, cells):
     frontier = defaultdict(lambda: np.iinfo(np.int64).max)
-    frontier[source] = 0
-    visited  = set()
+    results = defaultdict(lambda: np.iinfo(np.int64).max)
+    frontier[tuple(source)] = 0
+    
 
     while frontier:
         min_cost, next_vertex = np.iinfo(np.int64).max, None
@@ -16,21 +18,28 @@ def area_Dijkstra(grid, source, cells):
                 min_cost = frontier[vertex]
                 next_vertex = vertex
         
-        # Reached to the desired area
+        # Reached to the desired area - calculate the path
         if next_vertex in cells:
-            return next_vertex, min_cost
-        visited.add(next_vertex)
+            path = [next_vertex,]
+            while (path[-1] != source).any():
+                prevs = np.array([results[tuple(prev)] for prev in path[-1] + VALID_ACTIONS])
+                path.append(tuple(path[-1] + VALID_ACTIONS[np.argmin(prevs)]))
+            
+            return path[:-1][::-1]
+
+        # Else, continue the Dijkstra
+        results[tuple(next_vertex)] = min_cost
 
         childs = next_vertex + VALID_ACTIONS
         for child in childs:
             k, l = child
-            if (k >= 0 and k < grid.shape[0]) and (l >= 0 and l < grid.shape[1]):
+            if (k >= 0 and k < grid.shape[0]) and (l >= 0 and l < grid.shape[1]) and (grid[k, l] > 0):
                 cost = min_cost + grid[k, l]
-                if child not in visited:
-                    frontier[child] = min(cost, frontier[child])
-        frontier.pop(next_vertex)
+                if tuple(child) not in results:
+                    frontier[tuple(child)] = min(cost, frontier[tuple(child)])
+        frontier.pop(tuple(next_vertex))
 
-    return None, np.iinfo(np.int64).max
+    return []
 
 # Calculate best path to every cell in the grid
 def grid_Dijkstra(grid, source):
@@ -51,10 +60,10 @@ def grid_Dijkstra(grid, source):
         childs = next_vertex + VALID_ACTIONS
         for child in childs:
             k, l = child
-            if (k >= 0 and k < grid.shape[0]) and (l >= 0 and l < grid.shape[1]) and (grid[k, l]  > 0):
+            if (k >= 0 and k < grid.shape[0]) and (l >= 0 and l < grid.shape[1]) and (grid[k, l] > 0):
                 cost = min_cost + grid[k, l]
                 if tuple(child) not in results:
-                    frontier[tuple(child) ] = min(cost, frontier[tuple(child)])
+                    frontier[tuple(child)] = min(cost, frontier[tuple(child)])
         frontier.pop(tuple(next_vertex))
 
     return results

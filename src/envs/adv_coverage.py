@@ -71,13 +71,13 @@ class AdversarialCoverage(MultiAgentEnv):
         # place obstacles and threats in the area
         if not self.shuffle_config:
             if getattr(args, "random_config", False): # random configuration - only once
-                self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+                self.grid[:, :, 2] = -1 * self._place_obstacles(self.obstacle_rate)
                 self.grid[:, :, 3] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
-                self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+                self.obstacles = np.stack(np.where(self.grid[:, :, 2] == 1)).transpose()
             else: # place ocnfiguration from configuration file
                 self.obstacles = np.asarray(getattr(args, "obstacles_location", []))
                 if self.obstacles.size > 0:
-                    self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = -1
+                    self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 2] = 1
 
                 threats = np.asarray(getattr(args, "threat_location", []))
                 if threats.size > 0:
@@ -153,9 +153,9 @@ class AdversarialCoverage(MultiAgentEnv):
 
         # If "shuffle_config" mode in on, the area is changed every episode (obstacles and threats)
         if self.shuffle_config:
-            self.grid[:, :, 2] = self._place_obstacles(self.obstacle_rate)
+            self.grid[:, :, 2] = -1 * self._place_obstacles(self.obstacle_rate)
             self.grid[:, :, 3] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
-            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == -1)).transpose()
+            self.obstacles = np.stack(np.where(self.grid[:, :, 2] == 1)).transpose()
 
         # Place agents & set obstacles to marked as "covered"
         self.agents = self._place_agents()
@@ -388,7 +388,7 @@ class AdversarialCoverage(MultiAgentEnv):
             print(f"INFO: Cannot create reachable environemnt, reduce obstacle rate to {obstacle_rate}")
 
     def _place_threats(self, threats_rate, risk_avg, risk_std):
-        avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells
+        avail_cell = np.asarray(self.grid[:, :, 2] != 1, dtype=np.int16) # free cells
         
         # normalize the threat_rate s.t. rate is relative to free cells and not the whole grid
         map_grid = avail_cell * (np.random.rand(self.height, self.width) < threats_rate * (avail_cell.size/np.sum(avail_cell)))

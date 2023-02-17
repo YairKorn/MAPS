@@ -48,7 +48,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         self.allow_collisions = getattr(args, "allow_collisions", False)
         self.n_agents = args.n_agents
         self.agents_type = np.asarray(getattr(args, "agents_type", ))
-        self.n_agents_types = max(self.agents_type) + 1
+        self.n_agents_types = int(max(self.agents_type) + 1)
 
         # Initialization
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
@@ -97,7 +97,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
         self.n_features = self.n_agents_types + self.watch_covered + 2 * self.watch_surface # changable features, does not includes the location
         
-        self.state_size = self.grid.size + self.n_agents * self.n_cells
+        self.state_size = self.grid.size + self.n_agents_types * self.n_cells
         self.obs_size = (self.n_features + 1) * (self.n_cells if self.observation_range < 0 else (2 * self.observation_range + 1) ** 2)
         
         # Agents' action space
@@ -267,7 +267,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
     #   2. Partial-observability with absolute location (location of agent is marked on the map)
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique(np.concatenate((np.arange(self.n_agents_types), [self.watch_covered, 2 * self.watch_surface] + \
+        watch = np.unique(np.concatenate((np.arange(self.n_agents_types), np.array([self.watch_covered, 2 * self.watch_surface]) + \
             self.n_agents_types - 1), axis=0))
 
         # Observation-mode 1 - return the whole grid

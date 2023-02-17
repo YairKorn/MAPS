@@ -111,8 +111,8 @@ class EpisodeRunner:
         
         # Added for testing the optimization criteria of adv_coverage directly into the logger
         if test_mode and 'log_env' in self.args.env_args and self.args.env_args['log_env']:
-            self.cov_stats.append(((np.abs(self.env.grid[:, :, -1]) != 1) * self.env.grid[:, :, -2]).sum() + self.env.time_reward * self.t) 
-
+            offset = 1 - hasattr(self.env, 'n_agents_types')
+            self.cov_stats.append((self.env.grid[:, :, -2 - offset]).sum() - (self.env.grid[:, :, -1 - offset]).sum() + self.env.time_reward * self.t) 
         if not test_mode:
             self.t_env += self.t
 

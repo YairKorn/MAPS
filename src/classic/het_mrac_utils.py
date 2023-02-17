@@ -1,21 +1,22 @@
 import numpy as np
 import os, yaml, pymetis
-from utils import *
+from het_utils import *
 
 
 class Area():
-    def __init__(self, map: np.ndarray, i: int = 0, j: int = 0, threat_level: int = 0, cells: list[tuple] = None) -> None:
-        self.threat_level = threat_level    # Should be a list when it comes to the heterogeneous case
+    def __init__(self, map: np.ndarray, threat_level: int, i: int = 0, j: int = 0, cells: list[tuple] = None) -> None:
+        self.threat_level = threat_level
         if cells is None:
-            self.cells = {cell:0 for cell in self.build_area(map, i, j, threat_level)}
+            self.cells = {cell:0 for cell in self.build_area(map, i, j)}
         else:
-            self.cells = {cell:0 for cell in cells}
-        self.covered_cells = 0
+            self.cells = cells
+        self.covered_cells = sum(self.cells.values())
 
         self.assigned = []
         self.build_rep_graph(map)
 
-    def build_area(self, map: np.ndarray, i: int, j: int, threat_level: int):
+    def build_area(self, map: np.ndarray, i: int, j: int):
+        th_level, th_type = map[i, j]
         cells = [(i, j)]
         map[i, j] = (map[i, j] + 0.1)
 
@@ -25,7 +26,7 @@ class Area():
             childs = node + VALID_ACTIONS
             for child in childs:
                 k, l = child
-                if (k >= 0 and k < map.shape[0]) and (l >= 0 and l < map.shape[1]) and (map[tuple(child)] == threat_level):
+                if (k >= 0 and k < map.shape[0]) and (l >= 0 and l < map.shape[1]) and (map[k, l, 0] == th_level) and (map[k, l, 1] == th_type):
                     q.append(child)
                     cells.append((k, l))
                     map[tuple(child)] = (map[tuple(child)] + 0.1)
@@ -42,8 +43,12 @@ class Area():
 
         self.rep_graph = []
         for v in vertices:
-            self.rep_graph.append(np.array([rev_vertices[k] for k in VALID_ACTIONS_GRAPH + v if k in verset]))
-
+            e = []
+            for k in VALID_ACTIONS_GRAPH + v:
+                if (k in verset) and (abs(v//map.shape[0] - k//map.shape[0]) + abs(v%map.shape[0] - k%map.shape[0]) == 1):
+                    e.append(rev_vertices[k])
+            self.rep_graph.append(np.array(e))
+            
         # Useful metrices
         self.vertices = vertices
         self.map_size = map.shape
@@ -56,9 +61,10 @@ class Area():
 
         # Case that split is required
         _, split = pymetis.part_graph(len(self.assigned), adjacency=self.rep_graph)
-        cells = [[] for _ in range(len(self.assigned))]
+        cells = [{} for _ in range(len(self.assigned))]
         for i in range(len(split)):
-            cells[split[i]].append((self.vertices[i]//self.map_size[0],(self.vertices[i]%self.map_size[0])))
+            k, l = self.vertices[i]//self.map_size[0], self.vertices[i]%self.map_size[0]
+            cells[split[i]][(k, l)] = self.cells[(k, l)]
 
         cells = list(filter(None, cells))
         subareas = [Area(map=map, threat_level=self.threat_level, cells=cells[i]) for i in range(len(cells))]
@@ -78,16 +84,16 @@ class Area():
 
     def reallocate_area(self, areas_map: np.ndarray):
         subareas = []
-        tmp_map = np.zeros(self.map_size)
+        tmp_map = np.zeros_like(areas_map)
         for cell in self.cells:
             tmp_map[cell] = (1 - self.cells[cell])
         
         for cell in self.cells:
             if tmp_map[cell] == 1:
-                cells_new = [cell]
+                cells_new = {cell:0}
                 tmp_map[cell] = 0
 
-                q = cells_new.copy()
+                q = list(cells_new.keys())
                 while q:
                     node = q.pop()
                     childs = node + VALID_ACTIONS
@@ -95,7 +101,7 @@ class Area():
                         k, l = child
                         if (k >= 0 and k < self.map_size[0]) and (l >= 0 and l < self.map_size[1]) and (tmp_map[tuple(child)] == 1):
                             q.append(child)
-                            cells_new.append((k, l))
+                            cells_new[(k, l)] = 0
                             tmp_map[tuple(child)] = 0
                 subareas.append(Area(map=tmp_map, threat_level=self.threat_level, cells=cells_new))
 
@@ -110,8 +116,9 @@ class Area():
 class Robot():
     STATUS = {"IDLE":0, "TRAVELING":1, "COVERING":2, "DISABLED":3}
 
-    def __init__(self, map: np.ndarray, id: int, alpha: float, location, graph_function: str) -> None:
+    def __init__(self, map: np.ndarray, id: int, type: int, alpha: float, location, graph_function: str) -> None:
         self.id = id
+        self.type = type
         self.area = None                    # Assigned area
         self.status = self.STATUS["IDLE"]   # Robot status
         self.location = location            # Current location
@@ -119,7 +126,7 @@ class Robot():
 
         # Aid data structures
         self.graph_function = graph_function
-        self.create_induced_grid(map)
+        self.create_induced_grid(map.take(self.type, axis=-1))
         self.past_path = [] #$ DEBUG
 
     def create_induced_grid(self, map: np.ndarray, cover_map: np.ndarray=None):
@@ -134,7 +141,7 @@ class Robot():
 
     def find_best_path_to_areas(self, areas: list[Area]):
         Dijkstra_results = grid_Dijkstra(self.induced_grid, self.location)
-        areas_cost = np.ones((len(areas)))  * np.iinfo(np.int64).max
+        areas_cost = np.ones((len(areas))) * np.iinfo(np.int64).max
 
         for i in range(self.induced_grid.shape[0]):
             for j in range(self.induced_grid.shape[1]):
@@ -161,10 +168,6 @@ class Robot():
         while cells:
             self.path += target_Dijkstra(self.induced_grid, np.array(self.path[-1] if self.path else self.location), cells)
             cells.pop(self.path[-1])
-        # A repeated target Dijkstra
-        # Consider change area.cells to be dict() rather than set() and mark if a cell is covered
-            # OR mark cells on a map and share it between agents
-        
 
 
     def make_a_move(self, map: np.ndarray, areas_map: np.ndarray):
@@ -172,7 +175,7 @@ class Robot():
             self.location = self.path.pop(0)
             area_status = areas_map[tuple(self.location)].mark_as_covered(tuple(self.location))
 
-            if np.random.rand() < map[tuple(self.location)]:
+            if np.random.rand() < map[tuple(self.location)][self.type]:
                 print(f"A robot was hit, id: {self.id}")
                 self.status = self.STATUS["DISABLED"]   # Set robot as disabled
                 if self.area.assigned:
@@ -192,7 +195,6 @@ class Robot():
         elif self.status == self.STATUS["COVERING"]:
             area_status = self.make_a_move(map, areas_map)
 
-
         elif self.status == self.STATUS["IDLE"]:
             pass
 
@@ -205,17 +207,21 @@ class Robot():
 
 
 def config2map(config, default_path = True):
-    path = os.path.join(os.getcwd(), "maps", "coverage_maps") if default_path else ""
+    path = os.path.join(os.getcwd(), "maps", "het_coverage_maps") if default_path else ""
     data = yaml.safe_load(open(os.path.join(path, config.map + ".yaml"), 'r'))
     
     # Initialization of the map
-    grid = np.zeros(data["world_shape"])
+    grid = np.zeros(data["world_shape"] + [len(set(data["agents_type"]))])
     obs = np.array(data["obstacles_location"])
-    grid[obs[:, 0], obs[:, 1]] = -1.0
+    grid[obs[:, 0], obs[:, 1], :] = -1.0
+
+    ths_mat = np.array(data["types_matrix"])
     ths = np.array(data["threat_location"])
-    grid[ths[:, 0].astype(int), ths[:, 1].astype(int)] = ths[:, 2]
+    for i in range(grid.shape[-1]):
+        grid[ths[:, 0].astype(int), ths[:, 1].astype(int), i] += ths_mat[i, ths[:, 3].astype(int)] * ths[:, 2]
 
     # Initialization of the robots
-    robots = [Robot(grid, id, location=np.array(loc), alpha=config.optim_alpha, graph_function=config.graph_function) for id, loc in enumerate(data["agents_placement"])]
+    robots_type = data["agents_type"]
+    robots = [Robot(map=grid, id=id, type=robots_type[id], location=np.array(loc), alpha=config.optim_alpha, graph_function=config.graph_function) for id, loc in enumerate(data["agents_placement"])]
     
-    return grid, robots
+    return grid, robots, ths, ths_mat

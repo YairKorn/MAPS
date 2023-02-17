@@ -1,6 +1,6 @@
 import yaml
 import numpy as np
-from mrac_utils import *
+from het_mrac_utils import *
 from utils import print_results
 from argparse import Namespace
 from scipy.optimize import linear_sum_assignment
@@ -19,19 +19,29 @@ $ General notes about the algorithm:
 """
 
 
-def areas_creation(map, num_levels):
-    raw_map = np.ceil((map * num_levels))
+def areas_creation(map, threats, threat_matrix, num_levels):
+
+    threat_levels = np.ceil((threats[:, 2] * num_levels))
+
+    raw_map = np.zeros(map.shape[:-1] + (2,))
+    raw_map[threats[:, 0].astype(int), threats[:, 1].astype(int)] = np.stack((threat_levels, threats[:, 3]), axis=-1)
+    raw_map[:, :, 0] -= (map.take(0, axis=-1) == -1)
+
+    typed_threat_levels = np.ceil(np.expand_dims(threats[:, 2], axis=-1) * threat_matrix[threats[:, 3].astype(int)] * num_levels)
+    typed_threat_matrix = np.zeros(map.shape)
+    typed_threat_matrix[threats[:, 0].astype(int), threats[:, 1].astype(int)] = typed_threat_levels
+
     area_list = []
 
     # Build a list of areas
-    for t in range(num_levels+1):
-        for i in range(map.shape[0]):
-            for j in range(map.shape[1]):
-                if raw_map[i, j] == t:
-                    area_list.append(Area(raw_map, i, j, t))
+    # for t in range(num_levels+1):
+    for i in range(map.shape[0]):
+        for j in range(map.shape[1]):
+            if (raw_map[i, j, 0] != -1) and (np.mod(raw_map[i, j, 0], 1) == 0):
+                area_list.append(Area(raw_map, typed_threat_matrix[i, j], i, j))
     
     # Mark on a map which cell belongs to which area
-    areas_map = np.empty_like(map, dtype=np.object0)
+    areas_map = np.empty_like(map.take(0, axis=-1), dtype=np.object0)
     for i in range(map.shape[0]):
         for j in range(map.shape[1]):
             for k in area_list:
@@ -48,7 +58,7 @@ def assign_robot_area(area: Area, robot: Robot):
 def assign_areas_to_robots(areas: list[Area], areas_map: np.ndarray, robots: list[Robot], max_density: int):
     # Assign areas to robots
     for robot in robots:
-        costs = robot.find_best_path_to_areas(areas)
+        costs = robot.find_best_path_to_areas(areas) ####! HERE I STOPPED TO EXTEND TO HETEROGENEOUS !####
         for i in np.argsort(costs):
             area = areas[i]
             if len(area.assigned) < max_density * len(area.cells):
@@ -70,23 +80,30 @@ def assign_areas_to_robots(areas: list[Area], areas_map: np.ndarray, robots: lis
     #* This is a PATCH, because when area is splited the coverage status isn't preserved. It is fixable but I don't want to, for now
     #* KNOWN BUG: area of size 2 with 2 robots, after sharing paths are empty
     for robot in robots:
-        areas_map[tuple(robot.location)].mark_as_covered(tuple(robot.location))
+        if sum(robot.area.cells.values()) == len(robot.area.cells):
+            areas.remove(areas_map[tuple(robot.location)])
+            assign_next_area(areas, areas_map, robot)
+        else:
+            plan_robot_path(robot)
 
-    for robot in robots:
-        plan_robot_path(robot)
+    # for robot in robots:
+    #     areas_map[tuple(robot.location)].mark_as_covered(tuple(robot.location))
+
+    # for robot in robots:
+    #     plan_robot_path(robot)
     
     return areas
 
-def assign_next_area(areas: list[Area], areas_map: np.ndarray, map: np.ndarray, robot: Robot):
+def assign_next_area(areas: list[Area], areas_map: np.ndarray, robot: Robot):
     avail_areas = list(filter(lambda area: not area.assigned, areas))
     
     # There is an unassigned area, assign to the robot
     if avail_areas:
         if robot.graph_function == "OPTIMIZED":
-            candidate_areas = avail_areas #! CHANGED NEED TO TEST
+            candidate_areas = avail_areas
         else:
-            lowest_threat = min([area.threat_level for area in avail_areas])
-            candidate_areas = list(filter(lambda area: area.threat_level == lowest_threat, avail_areas))
+            lowest_threat = min([area.threat_level[robot.type] for area in avail_areas])
+            candidate_areas = list(filter(lambda area: area.threat_level[robot.type] == lowest_threat, avail_areas))
         
         costs = robot.find_best_path_to_areas(candidate_areas)
         area = candidate_areas[costs.argmin()]
@@ -98,7 +115,7 @@ def assign_next_area(areas: list[Area], areas_map: np.ndarray, map: np.ndarray, 
         avail_areas = areas.copy()
         for area in areas:
             robot.calc_path_to_area(area)
-            if len(robot.path) >= len(area.cells) - area.covered_cells: #* In the original algorithm it's ">" rather than ">="
+            if len(robot.path) > len(area.cells) - area.covered_cells: #* In the original algorithm it's ">" rather than ">="
                 avail_areas.remove(area)
         
         for area in avail_areas.copy():
@@ -171,66 +188,62 @@ if __name__ == '__main__':
         if (arg in parsed_args) and (parsed_args.__getattribute__(arg)):
             args[arg] = parsed_args.__getattribute__(arg)
     config = Namespace(**args)
-    print(config)
+    
     results = [] # Store results of runs
-
     for _ in range(config.test_nepisode):
-        try:
-            # Initialization
-            map, robots = config2map(config)
-            cover_map = np.zeros_like(map, dtype=np.int16) + (map == -1).astype(np.int16)
+        # Initialization
+        map, robots, threats, threat_matrix = config2map(config)
+        cover_map = np.zeros(map.shape[:-1], dtype=np.int16) + (map.take(0, axis=-1) == -1).astype(np.int16)
 
-            # Pre-processing of the map
-            areas_list, areas_map = areas_creation(map, num_levels=config.threat_levels)                # Split env into areas
-            init_env(areas_list, areas_map, robots, cover_map)                                          # Mark robots locations as covered
-            areas_list = assign_areas_to_robots(areas_list, areas_map, robots, config.max_density)      # Assign areas to robots
+        # Pre-processing of the map
+        areas_list, areas_map = areas_creation(map, threats, threat_matrix, num_levels=config.threat_levels)                # Split env into areas
+        init_env(areas_list, areas_map, robots, cover_map)                                          # Mark robots locations as covered
+        areas_list = assign_areas_to_robots(areas_list, areas_map, robots, config.max_density)      # Assign areas to robots
+        
+        # Running loop
+        time = 0
+
+        while True: # update
+            #$ DEBUG
+            print(f'Time: {time}\t{[[r.id for r in a.assigned] for a in areas_list]}')
+            print(f'Time: {time}\t{[r.status for r in robots]}')
             
-            # Running loop
-            time = 0
+            # Perform action for every ACTIVE robot
+            for robot in robots:
+                if robot.status != robot.STATUS["DISABLED"]:
+                    robot.create_induced_grid(map.take(robot.type, axis=-1), cover_map)
+                    robot_status, area_status = robot.step(map, areas_map)
 
-            while True: # update
-                #$ DEBUG
-                print(f'Time: {time}\t{[[r.id for r in a.assigned] for a in areas_list]}')
-                print(f'Time: {time}\t{[r.status for r in robots]}')
-                
-                # Perform action for every ACTIVE robot
-                for robot in robots:
-                    if robot.status != robot.STATUS["DISABLED"]:
-                        robot.create_induced_grid(map, cover_map)
-                        robot_status, area_status = robot.step(map, areas_map)
+                    if area_status: # Area is completely covered - removed from areas list
+                        if areas_map[tuple(robot.location)] in areas_list:
+                            print(f'Area is completed\tRobot:{robot.id}\t\tAssigned: ' + \
+                                f'{areas_map[tuple(robot.location)].assigned[0].id if areas_map[tuple(robot.location)].assigned else []}')
+                            areas_list.remove(areas_map[tuple(robot.location)])
 
-                        if area_status: # Area is completely covered - removed from areas list
-                            if areas_map[tuple(robot.location)] in areas_list:
-                                print(f'Area is completed\tRobot:{robot.id}\tAssigned: \
-                                    {areas_map[tuple(robot.location)].assigned[0].id if areas_map[tuple(robot.location)].assigned else []}')
-                                areas_list.remove(areas_map[tuple(robot.location)])
+                    if robot_status == robot.STATUS["IDLE"]: # Robot finished to cover an area
+                        flag = assign_next_area(areas_list, areas_map, robot) # Assign new area
+                        # if robot.area:
+                        #     print(f"AN AREA ASSIGNED WITH THREAT {map[list(robot.area.cells.keys())[0]][robot.type]} OUT OF {[map[list(area.cells.keys())[0]][robot.type] for area in areas_list if not area.assigned]}")
 
-                        if robot_status == robot.STATUS["IDLE"]: # Robot finished to cover an area
-                            flag = assign_next_area(areas_list, areas_map, map, robot) # Assign new area
-
-
-                        elif robot_status == robot.STATUS["DISABLED"] and (not area_status):
-                            areas_list += robot.area.reallocate_area(areas_map)
-                            areas_list.remove(robot.area)
-                    
-                    # Update measurements
-                    cover_map[tuple(robot.location)] += 1 #$ DEBUG TO COUNT VISITS
-                    assert all([len(area.assigned) < 2 for area in areas_list])
-                    # assert sum([len(area.assigned) for area in areas_list]) == sum([r.status != r.STATUS["DISABLED"] for r in robots])
+                    elif robot_status == robot.STATUS["DISABLED"] and (not area_status):
+                        areas_list += robot.area.reallocate_area(areas_map)
+                        areas_list.remove(robot.area)
                 
                 # Update measurements
-                time += 1
+                cover_map[tuple(robot.location)] += 1 #$ DEBUG TO COUNT VISITS
+                assert all([len(area.assigned) < 2 for area in areas_list])
+            
+            # Update measurements
+            time += 1
 
-                if ((cover_map > 0).sum() == cover_map.size) or (time == config.episode_limit) or all([r.status == r.STATUS["DISABLED"] for r in robots]):
-                    break # End condition
+            if ((cover_map > 0).sum() == cover_map.size) or (time == config.episode_limit) or all([r.status == r.STATUS["DISABLED"] for r in robots]):
+                break # End condition
 
-            optim_value = ((cover_map > 0) * (map != -1)).sum() - config.optim_alpha * time # higher is better
-            results.append({
-                "coverage": ((cover_map > 0) * (map != -1)).copy(),
-                "time": time,
-                "optim_value": optim_value
-            })
-        except:
-            pass
+        optim_value = ((cover_map > 0) * (map.take(0, axis=-1) != -1)).sum() - config.optim_alpha * time # higher is better
+        results.append({
+            "coverage": ((cover_map > 0) * (map.take(0, axis=-1) != -1)).copy(),
+            "time": time,
+            "optim_value": optim_value
+        })
 
     print_results(os.path.join(os.getcwd(), "src", "classic", "results"), config, results)

@@ -9,8 +9,8 @@ class Area():
         if cells is None:
             self.cells = {cell:0 for cell in self.build_area(map, i, j, threat_level)}
         else:
-            self.cells = {cell:0 for cell in cells}
-        self.covered_cells = 0
+            self.cells = cells
+        self.covered_cells = sum(self.cells.values())
 
         self.assigned = []
         self.build_rep_graph(map)
@@ -42,7 +42,11 @@ class Area():
 
         self.rep_graph = []
         for v in vertices:
-            self.rep_graph.append(np.array([rev_vertices[k] for k in VALID_ACTIONS_GRAPH + v if k in verset]))
+            e = []
+            for k in VALID_ACTIONS_GRAPH + v:
+                if (k in verset) and (abs(v//map.shape[0] - k//map.shape[0]) + abs(v%map.shape[0] - k%map.shape[0]) == 1):
+                    e.append(rev_vertices[k])
+            self.rep_graph.append(np.array(e))
 
         # Useful metrices
         self.vertices = vertices
@@ -56,9 +60,10 @@ class Area():
 
         # Case that split is required
         _, split = pymetis.part_graph(len(self.assigned), adjacency=self.rep_graph)
-        cells = [[] for _ in range(len(self.assigned))]
+        cells = [{} for _ in range(len(self.assigned))]
         for i in range(len(split)):
-            cells[split[i]].append((self.vertices[i]//self.map_size[0],(self.vertices[i]%self.map_size[0])))
+            k, l = self.vertices[i]//self.map_size[0], self.vertices[i]%self.map_size[0]
+            cells[split[i]][(k, l)] = self.cells[(k, l)]
 
         cells = list(filter(None, cells))
         subareas = [Area(map=map, threat_level=self.threat_level, cells=cells[i]) for i in range(len(cells))]

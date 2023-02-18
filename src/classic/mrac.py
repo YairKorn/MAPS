@@ -6,15 +6,12 @@ from argparse import Namespace
 from scipy.optimize import linear_sum_assignment
 from argparse import ArgumentParser
 
-#! DOESN'T FIT TO HETEROGENOUS CASE!@!
-#!      The area creator keep only one threat level
 
 """
 $ General notes about the algorithm:
 1. Non-optimality of the first assignment because it follows an arbitrary order of the robots
 2. Coverage path is created before starting to cover the area - better: calc each step, which reduce multiple visits
 3. ... in the same manner, robot may go to an area that already was covered
-! 4. Consider to adopt the algorithm with the new (better) criteria by changing the heuristic of the induced graph
 ! 5. Create (3) auto-run script
 """
 
@@ -70,10 +67,11 @@ def assign_areas_to_robots(areas: list[Area], areas_map: np.ndarray, robots: lis
     #* This is a PATCH, because when area is splited the coverage status isn't preserved. It is fixable but I don't want to, for now
     #* KNOWN BUG: area of size 2 with 2 robots, after sharing paths are empty
     for robot in robots:
-        areas_map[tuple(robot.location)].mark_as_covered(tuple(robot.location))
-
-    for robot in robots:
-        plan_robot_path(robot)
+        if sum(robot.area.cells.values()) == len(robot.area.cells):
+            areas.remove(areas_map[tuple(robot.location)])
+            assign_next_area(areas, areas_map, robot)
+        else:
+            plan_robot_path(robot)
     
     return areas
 

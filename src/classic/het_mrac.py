@@ -85,12 +85,6 @@ def assign_areas_to_robots(areas: list[Area], areas_map: np.ndarray, robots: lis
             assign_next_area(areas, areas_map, robot)
         else:
             plan_robot_path(robot)
-
-    # for robot in robots:
-    #     areas_map[tuple(robot.location)].mark_as_covered(tuple(robot.location))
-
-    # for robot in robots:
-    #     plan_robot_path(robot)
     
     return areas
 

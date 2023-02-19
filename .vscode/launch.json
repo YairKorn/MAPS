@@ -12,6 +12,13 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Classic MRHAC",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/classic/het_mrac.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "PyMARL_MAPS",
             "type": "python",
             "request": "launch",
@@ -54,14 +61,28 @@
             ],
         },
         {
+            "name": "PyMARL_PPO",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "--config=ppo",
+                "--env-config=adv_coverage",
+                "with",
+                "obs_agent_id=True",
+                "-d"
+            ]
+        },
+        {
             "name": "PyMARL_DCG",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=dcg",
-                "--env-config=adv_coverage",
+                "--config=dcg_noshare",
+                "--env-config=het_adv_coverage",
                 "with",
                 "obs_agent_id=True",
                 "-d"

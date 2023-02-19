@@ -48,7 +48,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         self.allow_collisions = getattr(args, "allow_collisions", False)
         self.n_agents = args.n_agents
         self.agents_type = np.asarray(getattr(args, "agents_type", ))
-        self.n_agents_types = max(self.agents_type) + 1
+        self.n_agents_types = int(max(self.agents_type) + 1)
 
         # Initialization
         np.random.seed = getattr(args, "random_seed", None) # set seed for numpy
@@ -83,6 +83,9 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
                 for i in range(self.n_agents_types):
                     self.het_grid[threats_location[:, 0], threats_location[:, 1], i] = types_matrix[i, threat_types] * threats[:, 2]
 
+            self.threats = np.zeros((self.height, self.width))
+            self.threats[threats[:, 0].astype(int), threats[:, 1].astype(int)] = threats[:, 2]
+
         # Additional configuration parameters
         self.episode_limit = args.episode_limit
         self.reduced_punish = getattr(args, "reduced_punish", 0.0) # never disable a robot but give a negative reward for entering a threat
@@ -97,7 +100,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         self.observation_range = getattr(args, "observation_range", -1) # -1 = full observability
         self.n_features = self.n_agents_types + self.watch_covered + 2 * self.watch_surface # changable features, does not includes the location
         
-        self.state_size = self.grid.size + self.n_agents * self.n_cells
+        self.state_size = self.grid.size + self.n_agents_types * self.n_cells
         self.obs_size = (self.n_features + 1) * (self.n_cells if self.observation_range < 0 else (2 * self.observation_range + 1) ** 2)
         
         # Agents' action space
@@ -267,7 +270,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
     #   2. Partial-observability with absolute location (location of agent is marked on the map)
     def get_obs_agent(self, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique(np.concatenate((np.arange(self.n_agents_types), [self.watch_covered, 2 * self.watch_surface] + \
+        watch = np.unique(np.concatenate((np.arange(self.n_agents_types), np.array([self.watch_covered, 2 * self.watch_surface]) + \
             self.n_agents_types - 1), axis=0))
 
         # Observation-mode 1 - return the whole grid
@@ -426,7 +429,7 @@ class HeterogeneousAdversarialCoverage(MultiAgentEnv):
         os.makedirs(result_path)
 
         # Print threats on the map - print threats from type-0 POV
-        textmap = [[str(self.het_grid[i, j, 0]) if self.het_grid[i, j, 0] > 0 else "" for j in range(self.width)] for i in range(self.height)]
+        textmap = [[str(self.threats[i, j]) if self.threats[i, j] > 0 else "" for j in range(self.width)] for i in range(self.height)]
         steps_pad = int(np.log10(len(self.log_collector))) + 1
 
         # Per frame, restore the relevant stat and draw it using colormap

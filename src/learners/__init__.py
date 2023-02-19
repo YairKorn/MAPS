@@ -11,6 +11,9 @@ REGISTRY["qtran_learner"] = QTranLearner
 from .dcg_learner import DCGLearner
 REGISTRY["dcg_learner"] = DCGLearner
 
+from .ppo_learner import PPOLearner
+REGISTRY["ppo_learner"] = PPOLearner
+
 from .maps_learner import MAPSLearner
 REGISTRY["maps_learner"] = MAPSLearner
 

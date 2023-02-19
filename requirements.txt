@@ -32,7 +32,7 @@ matplotlib==3.7.0
 mock==4.0.3
 mpyq==0.2.5
 multidict==6.0.2
-numpy==1.21.5
+numpy==1.24.2
 nvidia-cuda-runtime-cu11==2021.10.25
 nvidia-cuda-runtime-cu115==11.5.50
 nvidia-pyindex==1.0.9

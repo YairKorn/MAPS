@@ -69,7 +69,7 @@ def assign_areas_to_robots(areas: list[Area], areas_map: np.ndarray, robots: lis
     for robot in robots:
         if sum(robot.area.cells.values()) == len(robot.area.cells):
             areas.remove(areas_map[tuple(robot.location)])
-            assign_next_area(areas, areas_map, robot)
+            assign_next_area(areas, areas_map, map, robot)
         else:
             plan_robot_path(robot)
     
@@ -175,6 +175,7 @@ if __name__ == '__main__':
     for _ in range(config.test_nepisode):
         try:
             # Initialization
+            print(f"### Initializing run {_}/{config.test_nepisode} ###")
             map, robots = config2map(config)
             cover_map = np.zeros_like(map, dtype=np.int16) + (map == -1).astype(np.int16)
 

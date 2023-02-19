@@ -1,11 +1,11 @@
 
-map: "HConnected_Areas2" # "Random_Map3" # "Connected_Areas2"
+map: "Connected_Areas3" # "Random_Map3" # "Connected_Areas2"
 
-test_nepisode: 100
+test_nepisode: 1000
 episode_limit: 100        # maximum number of time steps per episode
 
 threat_levels: 4          # No. tiers of threats
 max_density: 4            # Maximal ratio between robots and area cells in the initial allocation
-graph_function: "ORIGIN"  # "ORIGIN" for RoiECAI16; "SURV" for the fixed heuristic; "OPTIMIZED" for the optimization criteria heuristic
+graph_function: "OPTIMIZED"  # "ORIGIN" for RoiECAI16; "SURV" for the fixed heuristic; "OPTIMIZED" for the optimization criteria heuristic
 
-optim_alpha: 1.0         # Value of alpha of optimization criteria (E[X] - alpha * [T])
+optim_alpha: 0.1         # Value of alpha of optimization criteria (E[X] - alpha * [T])

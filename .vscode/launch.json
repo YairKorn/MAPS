@@ -81,7 +81,7 @@
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "args": [
-                "--config=dcg",
+                "--config=dcg_noshare",
                 "--env-config=het_adv_coverage",
                 "with",
                 "obs_agent_id=True",

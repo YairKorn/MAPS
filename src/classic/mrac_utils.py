@@ -89,10 +89,10 @@ class Area():
         
         for cell in self.cells:
             if tmp_map[cell] == 1:
-                cells_new = [cell]
+                cells_new = {cell:0}
                 tmp_map[cell] = 0
 
-                q = cells_new.copy()
+                q = list(cells_new.keys())
                 while q:
                     node = q.pop()
                     childs = node + VALID_ACTIONS
@@ -100,7 +100,7 @@ class Area():
                         k, l = child
                         if (k >= 0 and k < self.map_size[0]) and (l >= 0 and l < self.map_size[1]) and (tmp_map[tuple(child)] == 1):
                             q.append(child)
-                            cells_new.append((k, l))
+                            cells_new[(k, l)] = 0
                             tmp_map[tuple(child)] = 0
                 subareas.append(Area(map=tmp_map, threat_level=self.threat_level, cells=cells_new))
 

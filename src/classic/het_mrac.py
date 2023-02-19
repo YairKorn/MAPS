@@ -185,6 +185,7 @@ if __name__ == '__main__':
     
     results = [] # Store results of runs
     for _ in range(config.test_nepisode):
+        # try:
         # Initialization
         map, robots, threats, threat_matrix = config2map(config)
         cover_map = np.zeros(map.shape[:-1], dtype=np.int16) + (map.take(0, axis=-1) == -1).astype(np.int16)
@@ -239,5 +240,7 @@ if __name__ == '__main__':
             "time": time,
             "optim_value": optim_value
         })
+        # except:
+        #     pass
 
     print_results(os.path.join(os.getcwd(), "src", "classic", "results"), config, results)

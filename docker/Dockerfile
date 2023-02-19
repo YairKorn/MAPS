@@ -42,6 +42,7 @@ WORKDIR /install
 RUN pip3 install jsonpickle==0.9.6
 # install Sacred (from OxWhirl fork)
 RUN pip3 install setuptools
+RUN echo hello
 RUN git clone --branch Splited_Layer https://github.com/YairKorn/MAPS.git /install/sacred
 RUN cd /install/sacred && pip3 install -r requirements.txt
 

@@ -1,16 +1,20 @@
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu20.04
 # MAINTAINER Wendelin Boehmer (of the PyMARL original: Tabish Rashid)
 
 # CUDA includes
 ENV CUDA_PATH /usr/local/cuda
 ENV CUDA_INCLUDE_PATH /usr/local/cuda/include
 ENV CUDA_LIBRARY_PATH /usr/local/cuda/lib64
+ARG DEBIAN_FRONTEND=noninteractive
 
 # Ubuntu Packages
-RUN apt-get update -y && apt-get install software-properties-common -y && \
-    add-apt-repository -y multiverse && apt-get update -y && apt-get upgrade -y && \
-    apt-get install -y apt-utils nano vim man build-essential wget sudo && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y 
+RUN DEBIAN_FRONTEND=noninteractive apt-get -yq install apt-utils
+RUN apt-get install software-properties-common -y 
+RUN add-apt-repository -y multiverse && apt-get update -y 
+RUN apt-get upgrade -y 
+RUN apt-get install -y apt-utils nano vim man build-essential wget sudo
+RUN rm -rf /var/lib/apt/lists/*
 
 # Install curl and other dependencies
 RUN apt-get update -y && apt-get install -y curl libssl-dev openssl libopenblas-dev \
@@ -38,7 +42,10 @@ WORKDIR /install
 RUN pip3 install jsonpickle==0.9.6
 # install Sacred (from OxWhirl fork)
 RUN pip3 install setuptools
-RUN git clone https://github.com/oxwhirl/sacred.git /install/sacred && cd /install/sacred && python3 setup.py install
+RUN git clone https://github.com/YairKorn/MAPS.git /install/sacred
+RUN cd /install/sacred && pip3 install -r requirements.txt
+
+#setup.py install
 
 #### -------------------------------------------------------------------
 #### install pytorch
@@ -47,7 +54,7 @@ RUN pip3 install torch
 RUN pip3 install torchvision snakeviz pytest probscale
 
 ### -- This library must be added for DCG, one may need to adapt it to newer torch versions
-RUN pip3 install torch_scatter==latest+cu102 -f https://pytorch-geometric.com/whl/torch-1.5.0.html
+RUN pip3 install torch_scatter==latest+cu118 -f https://pytorch-geometric.com/whl/torch-1.5.0.html
 
 ### -- SMAC
 RUN pip3 install git+https://github.com/oxwhirl/smac.git

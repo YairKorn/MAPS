@@ -42,8 +42,12 @@ WORKDIR /install
 RUN pip3 install jsonpickle==0.9.6
 # install Sacred (from OxWhirl fork)
 RUN pip3 install setuptools
-RUN git clone https://github.com/YairKorn/MAPS.git /install/sacred
-RUN cd /install/sacred && pip3 install -r requirements.txt
+RUN echo hello
+
+RUN git clone --branch Splited_Layer https://github.com/YairKorn/MAPS.git /install/sacred
+COPY requirements.txt /tmp/requirements.txt
+RUN pip3 install -r /tmp/requirements.txt
+
 
 #setup.py install
 
@@ -54,10 +58,15 @@ RUN pip3 install torch
 RUN pip3 install torchvision snakeviz pytest probscale
 
 ### -- This library must be added for DCG, one may need to adapt it to newer torch versions
-RUN pip3 install torch_scatter==latest+cu118 -f https://pytorch-geometric.com/whl/torch-1.5.0.html
+RUN pip3 install torch_scatter
 
 ### -- SMAC
 RUN pip3 install git+https://github.com/oxwhirl/smac.git
-ENV SC2PATH /pymarl/3rdparty/StarCraftII
+# ENV SC2PATH /pymarl/3rdparty/StarCraftII
 
-WORKDIR /pymarl
+RUN pip3 install sacred
+WORKDIR /install/sacred
+# CMD ["python3", "src/main.py", "--config=dcg", "--env-config=het_adv_coverage"]
+
+COPY test_deep_alpha=1.0 /install/sacred/
+CMD ["python3", "test_deep.py"]

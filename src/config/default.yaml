@@ -27,7 +27,7 @@ save_replay: False # Saving the replay of the model loaded from checkpoint_path
 local_results_path: "results" # Path for local results
 
 # --- RL hyperparameters ---
-gamma: 0.99
+gamma: 0.97
 batch_size: 32 # Number of episodes to train on
 buffer_size: 32 # Size of the replay buffer
 epsilon_anneal_time: 50000 # Number of time steps until exploration has finished

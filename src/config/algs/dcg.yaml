@@ -14,7 +14,7 @@ cg_edges: 'full'    # Defines the CG: {'vdn', 'line', 'cycle', 'star', 'full', n
 cg_utilities_hidden_dim:      # Hidden layers of utility functions, by default None
 cg_payoffs_hidden_dim:        # Hidden layers of payoff functions, by default None
 cg_payoff_rank:               # If > 0, payoff matrices are decomposed with this rank, otherwise full rank
-duelling: False               # If True, runs DCG-V (adds a state-dependent bias function to the value)
+duelling: True                # If True, runs DCG-V (adds a state-dependent bias function to the value)
 msg_anytime: True             # Anytime extension of greedy action selection (Kok and Vlassis, 2006)
 msg_iterations: 8             # Number of message passes in greedy action selection
 msg_normalized: True          # Message normalization during greedy action selection (Kok and Vlassis, 2006)

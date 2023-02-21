@@ -7,7 +7,7 @@ env: "het_mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "HScattered_Threats1"      # A specified setup of the environment
+    map: "HScattered_Threats3"      # A specified setup of the environment
     # RECOMMENDED MAPS: HScattered_Threats2 | HScattered_Threats1
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:

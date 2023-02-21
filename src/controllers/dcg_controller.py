@@ -188,6 +188,11 @@ class DeepCoordinationGraphMAC(BasicMAC):
         if self.duelling:
             self.state_value.load_state_dict(other_mac.state_value.state_dict())
 
+    def save_models(self, path):
+        BasicMAC.save_models(self, path)
+        th.save(self.utility_fun.state_dict(), "{}/utilities.th".format(path))
+        th.save(self.payoff_fun.state_dict(), "{}/payoffs.th".format(path))
+
     def load_models(self, path):
         """ Loads parameters from the disc. """
         BasicMAC.load_models(self, path)

@@ -185,62 +185,63 @@ if __name__ == '__main__':
     
     results = [] # Store results of runs
     for _ in range(config.test_nepisode):
-        # try:
-        # Initialization
-        map, robots, threats, threat_matrix = config2map(config)
-        cover_map = np.zeros(map.shape[:-1], dtype=np.int16) + (map.take(0, axis=-1) == -1).astype(np.int16)
+        print(f"### Initializing run {_}/{config.test_nepisode} ###")
+        try:
+            # Initialization
+            map, robots, threats, threat_matrix = config2map(config)
+            cover_map = np.zeros(map.shape[:-1], dtype=np.int16) + (map.take(0, axis=-1) == -1).astype(np.int16)
 
-        # Pre-processing of the map
-        areas_list, areas_map = areas_creation(map, threats, threat_matrix, num_levels=config.threat_levels)                # Split env into areas
-        init_env(areas_list, areas_map, robots, cover_map)                                          # Mark robots locations as covered
-        areas_list = assign_areas_to_robots(areas_list, areas_map, robots, config.max_density)      # Assign areas to robots
-        
-        # Running loop
-        time = 0
-
-        while True: # update
-            #$ DEBUG
-            print(f'Time: {time}\t{[[r.id for r in a.assigned] for a in areas_list]}')
-            print(f'Time: {time}\t{[r.status for r in robots]}')
+            # Pre-processing of the map
+            areas_list, areas_map = areas_creation(map, threats, threat_matrix, num_levels=config.threat_levels)                # Split env into areas
+            init_env(areas_list, areas_map, robots, cover_map)                                          # Mark robots locations as covered
+            areas_list = assign_areas_to_robots(areas_list, areas_map, robots, config.max_density)      # Assign areas to robots
             
-            # Perform action for every ACTIVE robot
-            for robot in robots:
-                if robot.status != robot.STATUS["DISABLED"]:
-                    robot.create_induced_grid(map.take(robot.type, axis=-1), cover_map)
-                    robot_status, area_status = robot.step(map, areas_map)
+            # Running loop
+            time = 0
 
-                    if area_status: # Area is completely covered - removed from areas list
-                        if areas_map[tuple(robot.location)] in areas_list:
-                            print(f'Area is completed\tRobot:{robot.id}\t\tAssigned: ' + \
-                                f'{areas_map[tuple(robot.location)].assigned[0].id if areas_map[tuple(robot.location)].assigned else []}')
-                            areas_list.remove(areas_map[tuple(robot.location)])
+            while True: # update
+                #$ DEBUG
+                print(f'Time: {time}\t{[[r.id for r in a.assigned] for a in areas_list]}')
+                print(f'Time: {time}\t{[r.status for r in robots]}')
+                
+                # Perform action for every ACTIVE robot
+                for robot in robots:
+                    if robot.status != robot.STATUS["DISABLED"]:
+                        robot.create_induced_grid(map.take(robot.type, axis=-1), cover_map)
+                        robot_status, area_status = robot.step(map, areas_map)
 
-                    if robot_status == robot.STATUS["IDLE"]: # Robot finished to cover an area
-                        flag = assign_next_area(areas_list, areas_map, robot) # Assign new area
-                        # if robot.area:
-                        #     print(f"AN AREA ASSIGNED WITH THREAT {map[list(robot.area.cells.keys())[0]][robot.type]} OUT OF {[map[list(area.cells.keys())[0]][robot.type] for area in areas_list if not area.assigned]}")
+                        if area_status: # Area is completely covered - removed from areas list
+                            if areas_map[tuple(robot.location)] in areas_list:
+                                print(f'Area is completed\tRobot:{robot.id}\t\tAssigned: ' + \
+                                    f'{areas_map[tuple(robot.location)].assigned[0].id if areas_map[tuple(robot.location)].assigned else []}')
+                                areas_list.remove(areas_map[tuple(robot.location)])
 
-                    elif robot_status == robot.STATUS["DISABLED"] and (not area_status):
-                        areas_list += robot.area.reallocate_area(areas_map)
-                        areas_list.remove(robot.area)
+                        if robot_status == robot.STATUS["IDLE"]: # Robot finished to cover an area
+                            flag = assign_next_area(areas_list, areas_map, robot) # Assign new area
+                            # if robot.area:
+                            #     print(f"AN AREA ASSIGNED WITH THREAT {map[list(robot.area.cells.keys())[0]][robot.type]} OUT OF {[map[list(area.cells.keys())[0]][robot.type] for area in areas_list if not area.assigned]}")
+
+                        elif robot_status == robot.STATUS["DISABLED"] and (not area_status):
+                            areas_list += robot.area.reallocate_area(areas_map)
+                            areas_list.remove(robot.area)
+                    
+                    # Update measurements
+                    cover_map[tuple(robot.location)] += 1 #$ DEBUG TO COUNT VISITS
+                    assert all([len(area.assigned) < 2 for area in areas_list])
                 
                 # Update measurements
-                cover_map[tuple(robot.location)] += 1 #$ DEBUG TO COUNT VISITS
-                assert all([len(area.assigned) < 2 for area in areas_list])
-            
-            # Update measurements
-            time += 1
+                time += 1
 
-            if ((cover_map > 0).sum() == cover_map.size) or (time == config.episode_limit) or all([r.status == r.STATUS["DISABLED"] for r in robots]):
-                break # End condition
+                if ((cover_map > 0).sum() == cover_map.size) or (time == config.episode_limit) or all([r.status == r.STATUS["DISABLED"] for r in robots]):
+                    break # End condition
 
-        optim_value = ((cover_map > 0) * (map.take(0, axis=-1) != -1)).sum() - config.optim_alpha * time # higher is better
-        results.append({
-            "coverage": ((cover_map > 0) * (map.take(0, axis=-1) != -1)).copy(),
-            "time": time,
-            "optim_value": optim_value
-        })
-        # except:
-        #     pass
+            optim_value = ((cover_map > 0) * (map.take(0, axis=-1) != -1)).sum() - config.optim_alpha * time # higher is better
+            results.append({
+                "coverage": ((cover_map > 0) * (map.take(0, axis=-1) != -1)).copy(),
+                "time": time,
+                "optim_value": optim_value
+            })
+        except:
+            pass
 
     print_results(os.path.join(os.getcwd(), "src", "classic", "results"), config, results)

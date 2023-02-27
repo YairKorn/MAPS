@@ -1,5 +1,5 @@
 
-map: "HConnected_AreasE2" # "Random_Map3" # "Connected_Areas2" "HConnected_AreasE1", HScattered_ThreatsE1
+map: "HScattered_ThreatsE2" # "Random_Map3" # "Connected_Areas2" "HConnected_AreasE1", HScattered_ThreatsE1
 
 test_nepisode: 1000
 episode_limit: 100        # maximum number of time steps per episode

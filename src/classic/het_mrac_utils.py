@@ -137,7 +137,7 @@ class Robot():
             self.induced_grid = threat_cost + np.where(threat_cost > 1e-3, map, np.inf).min() / map.size
         elif self.graph_function == "OPTIMIZED":
             remaining_cells = map.size - ((cover_map > 0).sum() if cover_map is not None else (map == -1).sum())
-            self.induced_grid = map * remaining_cells + self.alpha
+            self.induced_grid = (1 - self.alpha) * map * remaining_cells + self.alpha
 
     def find_best_path_to_areas(self, areas: list[Area]):
         Dijkstra_results = grid_Dijkstra(self.induced_grid, self.location)

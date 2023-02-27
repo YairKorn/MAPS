@@ -7,6 +7,8 @@ COLORS = ['blue', 'red', 'black', 'green', 'purple', 'tan', 'lime', 'skyblue', '
 
 def visualize(prefix, window=1, c=None):
     experiments = os.listdir(os.path.join(os.getcwd(), 'results', 'sacred', prefix))
+    experiments.sort()
+
     if c is None:
         c = experiments
 
@@ -69,8 +71,10 @@ def visualize(prefix, window=1, c=None):
             COLORS.append(COLORS.pop(0))
 
 
-    plt.title(prefix + " Criteria")
-    plt.legend(loc="best")
+    plt.title(prefix + " Criteria", fontweight ='bold', fontsize=36, fontname="Ubuntu")
+    plt.legend(loc="best", fontsize=36)
+    plt.xticks(fontsize=25)
+    plt.yticks(fontsize=25)
     plt.show()
 
 

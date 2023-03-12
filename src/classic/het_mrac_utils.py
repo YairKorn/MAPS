@@ -116,7 +116,7 @@ class Area():
 class Robot():
     STATUS = {"IDLE":0, "TRAVELING":1, "COVERING":2, "DISABLED":3}
 
-    def __init__(self, map: np.ndarray, id: int, type: int, alpha: float, location, graph_function: str) -> None:
+    def __init__(self, map: np.ndarray, id: int, type: int, alpha: float, location, graph_function: str, n_robots: int=1) -> None:
         self.id = id
         self.type = type
         self.area = None                    # Assigned area
@@ -126,10 +126,10 @@ class Robot():
 
         # Aid data structures
         self.graph_function = graph_function
-        self.create_induced_grid(map.take(self.type, axis=-1))
+        self.create_induced_grid(map.take(self.type, axis=-1), n_robots)
         self.past_path = [] #$ DEBUG
 
-    def create_induced_grid(self, map: np.ndarray, cover_map: np.ndarray=None):
+    def create_induced_grid(self, map: np.ndarray, n_robots: int, cover_map: np.ndarray=None):
         if self.graph_function == "ORIGIN":
             self.induced_grid = (map == 0) * (1 / map.size) + map / np.where(map > 0, map, np.inf).min()
         elif self.graph_function == "SURV":
@@ -137,7 +137,7 @@ class Robot():
             self.induced_grid = threat_cost + np.where(threat_cost > 1e-3, map, np.inf).min() / map.size
         elif self.graph_function == "OPTIMIZED":
             remaining_cells = map.size - ((cover_map > 0).sum() if cover_map is not None else (map == -1).sum())
-            self.induced_grid = (1 - self.alpha) * map * remaining_cells + self.alpha
+            self.induced_grid = (1 - self.alpha/n_robots) * map * remaining_cells + self.alpha
 
     def find_best_path_to_areas(self, areas: list[Area]):
         Dijkstra_results = grid_Dijkstra(self.induced_grid, self.location)
@@ -222,6 +222,7 @@ def config2map(config, default_path = True):
 
     # Initialization of the robots
     robots_type = data["agents_type"]
-    robots = [Robot(map=grid, id=id, type=robots_type[id], location=np.array(loc), alpha=config.optim_alpha, graph_function=config.graph_function) for id, loc in enumerate(data["agents_placement"])]
+    robots = [Robot(map=grid, id=id, type=robots_type[id], location=np.array(loc), alpha=config.optim_alpha,\
+                     graph_function=config.graph_function, n_robots=data["n_agents"]) for id, loc in enumerate(data["agents_placement"])]
     
     return grid, robots, ths, ths_mat

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 
 PATH = os.path.join(os.getcwd(), "src", "classic", "analysis", "results")
-DATA_FILE = "Analysis_Summary_2023-02-19-10:08:10.csv"
+DATA_FILE = "Analysis_Summary_2023-02-28-01:21:25.csv"
 O_PATH = os.path.join(os.getcwd(), "src", "classic", "analysis")
 GRAPHS = {'ORIGIN': 0, 'OPTIMIZED': 1, 'LEARNING': 2}
 ALPHAS = {'alpha=0.1': 0, 'alpha=0.5': 1, 'alpha=1.0': 2}
@@ -38,11 +38,11 @@ for i, k in enumerate(data.keys()):
 
         d = np.array(data[k], dtype=float)
         plt.bar(br1, d[::6], yerr=d[1::6], capsize=4, color ="salmon", width = barWidth,
-                edgecolor ='red', label ='ORIGIN')
+                edgecolor ='red', label ='MRAC')
         # plt.bar(br2, d[2::8], yerr=d[3::8], capsize=4, color ="burlywood", width = barWidth,
         #         edgecolor ='orange', label ='SURV')
         plt.bar(br2, d[2::6], yerr=d[3::6], capsize=4, color ="seagreen", width = barWidth,
-                edgecolor ='green', label ='OPTIMIZED')
+                edgecolor ='green', label ='HMRAC*')
         plt.bar(br3, d[4::6], yerr=d[5::6], capsize=4, color ="royalblue", width = barWidth,
                 edgecolor ='blue', label ='LEARNING')
 

@@ -15,7 +15,7 @@
             "name": "Classic MRHAC",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/src/classic/het_mrac.py",
+            "program": "${workspaceFolder}/src/classic/mrac.py",
             "console": "integratedTerminal"
         },
         {

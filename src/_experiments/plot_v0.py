@@ -30,15 +30,15 @@ def visualize(prefix, window=1, c=None):
     for pre, exp in dataset.items():
         # Extract the first file data, which used as reference to other files
         data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, exp[0], "info.json"), 'r'))
-        if 'criteria_mean' in data:
-            test_time = np.asarray(data["criteria_mean_T"])
+        if 'v0_mean' in data:
+            test_time = np.asarray(data["v0_mean_T"])
             if window > 1:
                 test_time = test_time[:-window+1]
 
-            criteria_mean = np.expand_dims(np.convolve(np.asarray([d["value"] for d in data["criteria_mean"]]), \
+            v0_mean = np.expand_dims(np.convolve(np.asarray(data["v0_mean"]), \
                 np.ones(window), 'valid') / window, axis=0)
 
-            criteria_std = np.expand_dims(np.convolve(np.asarray([d["value"] for d in data["criteria_std"]]), \
+            v0_std = np.expand_dims(np.convolve(np.asarray(data["v0_std"]), \
                 np.ones(window), 'valid') / window, axis=0)
 
             # Calculate average result of this category
@@ -48,13 +48,13 @@ def visualize(prefix, window=1, c=None):
                         # data = json.load(open(os.path.join(dir, "info.json"), 'r'))
                         data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, dir, "info.json"), 'r'))
 
-                        m_data = np.convolve(np.asarray([d["value"] for d in data["criteria_mean"]]), np.ones(window), 'valid') / window
+                        m_data = np.convolve(np.asarray(data["v0_mean"]), np.ones(window), 'valid') / window
                         m_data = m_data[:min(test_time.size, m_data.size)] # Trim longer data
                         m_data = np.pad(m_data, (0, test_time.size - m_data.size), 'constant', constant_values=m_data[-1])
 
                         test_mean = np.concatenate((test_mean, np.expand_dims(m_data, axis=0)), axis=0)
 
-                        s_data = np.convolve(np.asarray([d["value"] for d in data["criteria_std"]]), np.ones(window), 'valid') / window
+                        s_data = np.convolve(np.asarray(data["v0_std"]), np.ones(window), 'valid') / window
                         s_data = s_data[:min(test_time.size, s_data.size)] # Trim longer data
                         s_data = np.pad(s_data, (0, test_time.size - s_data.size), 'constant', constant_values=s_data[-1]) # Pad shorter data
 
@@ -63,15 +63,15 @@ def visualize(prefix, window=1, c=None):
                         pass
 
             # average over all results
-            criteria_mean = np.average(criteria_mean, axis=0)
-            criteria_std = np.average(criteria_std, axis=0)
+            v0_mean = np.average(v0_mean, axis=0)
+            v0_std = np.average(v0_std, axis=0)
 
-            plt.plot(test_time, criteria_mean, COLORS[0], label=pre)
-            plt.fill_between(test_time, criteria_mean - criteria_std, criteria_mean + criteria_std, color=COLORS[0], alpha=.25)
+            plt.plot(test_time, v0_mean, COLORS[0], label=pre)
+            plt.fill_between(test_time, v0_mean - v0_std, v0_mean + v0_std, color=COLORS[0], alpha=.25)
             COLORS.append(COLORS.pop(0))
 
 
-    plt.title(prefix + " Criteria", fontweight ='bold', fontsize=36, fontname="Ubuntu")
+    plt.title(prefix + " v0", fontweight ='bold', fontsize=36, fontname="Ubuntu")
     plt.legend(loc="best", fontsize=36)
     plt.xticks(fontsize=25)
     plt.yticks(fontsize=25)

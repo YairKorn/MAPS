@@ -195,7 +195,8 @@ if __name__ == '__main__':
                 # Perform action for every ACTIVE robot
                 for robot in robots:
                     if robot.status != robot.STATUS["DISABLED"]:
-                        robot.create_induced_grid(map, cover_map)
+                        n_robots = sum([robot.status != robot.STATUS["DISABLED"] for robot in robots])
+                        robot.create_induced_grid(map, n_robots, cover_map)
                         robot_status, area_status = robot.step(map, areas_map)
 
                         if area_status: # Area is completely covered - removed from areas list

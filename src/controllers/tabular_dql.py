@@ -63,10 +63,10 @@ class TabularDQL(BasicMAC):
     def cuda(self):
         pass
 
-    def save_models(self, path):
+    def save_model(self, path):
         path = pt.dirname(path)
         self.agent.save_model(path)
 
-    def load_models(self, path):
+    def load_model(self, path):
         path = pt.dirname(path)
         self.agent.load_model(path)

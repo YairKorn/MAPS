@@ -1,6 +1,7 @@
 # A map for advarserial coverage environment
 
 agents_placement: []    # if random_placement is False, location can be specified
+n_agents: 4
 obstacles_location: [
     [1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [1, 6], [2, 5], [3, 4], [4, 3], [5, 2], [6, 1]
 ]  # specified location of obstacles in the grid

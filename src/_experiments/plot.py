@@ -36,6 +36,12 @@ def visualize(prefix, window=1, c=None):
         # Extract the first file data, which used as reference to other files
         data = json.load(open(os.path.join(os.getcwd(), 'results', 'sacred', prefix, exp[0], "info.json"), 'r'))
         test_time = np.asarray(data["test_return_mean_T"])
+        
+        #$ DEBUG
+        if pre == 'MAPS':
+            window = 1
+
+        
         if window > 1:
             test_time = test_time[:-window+1]
 
@@ -74,8 +80,10 @@ def visualize(prefix, window=1, c=None):
         plt.fill_between(test_time, test_mean - test_std, test_mean + test_std, color=COLORS[0], alpha=.25)
         COLORS.append(COLORS.pop(0))
 
-    plt.title(prefix)
-    plt.legend(loc="best")
+    plt.title(prefix, fontweight ='bold', fontsize=36, fontname="Ubuntu")
+    plt.legend(loc="best", fontsize=36)
+    plt.xticks(fontsize=25)
+    plt.yticks(fontsize=25)
     plt.show()
 
 

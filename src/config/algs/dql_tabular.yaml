@@ -14,4 +14,4 @@ learner: "ol_tabular_learner"   # The learner for MAPS
 mac: "dql_tabular"              # The multi-agent controller for MAPS
 mixer:                          # No mixing network for MAPS
 target_update_interval:         # Update the target network every {} episodes
-alpha: 0.3                      # Learning rate for tabular
+alpha: 0.1                      # Learning rate for tabular

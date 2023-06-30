@@ -27,7 +27,7 @@ def rename_dir(skip=2, prefix='', fields=None):
     experiments = [os.path.join(PATH, d) for d in dirs[:len(dirs)-skip]]
 
     for e in experiments:
-        try:
+        # try:
             with open(os.path.join(e, 'config.json')) as f:
                 config = json.load(f)
 
@@ -47,7 +47,7 @@ def rename_dir(skip=2, prefix='', fields=None):
                     _args.append(f'{tmp_name}={config[tmp_arg]}' if tmp_arg in config else '')
                     # _args = '&'.join([f'{f}={config[f]}' if f in config else '' for f in fields])
                 _args = '&'.join(_args)
-                _name = '#'.join([_alg, _args, _date])
+                _name = '#'.join([_alg, _args, _date, e.split('/')[-1]])
             else:
                 _name = '#'.join([_alg, _date])
             
@@ -55,8 +55,8 @@ def rename_dir(skip=2, prefix='', fields=None):
         
             shutil.move(os.path.join(PATH, _name), os.path.join(_path, _name))
             # os.rename(e_new, os.path.join(_path, _name))
-        except:
-            print(f"Failed to rename {e}")
+        # except:
+            # print(f"Failed to rename {e}")
 
 def make_parser():
     parser = ArgumentParser(description="Arguments for rename experiments")
@@ -68,4 +68,4 @@ def make_parser():
 if __name__ == '__main__':
     args = make_parser().parse_args()
     rename_dir(args.skip, args.prefix, args.f)
-    # rename_dir(0, '', ['env_args_reduced_decay=decay']) #! DEBUG
+    # rename_dir(2, 'No_Threat_Reward', []) #! DEBUG

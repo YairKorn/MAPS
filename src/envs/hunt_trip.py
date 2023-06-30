@@ -260,6 +260,7 @@ class HuntingTrip(MultiAgentEnv):
                 #         assert self.grid[nloc[0], nloc[1], 1]
                 #     else:
                 #         assert self.avail_actions[nloc[0]+1, nloc[1]+1] or self.grid[nloc[0], nloc[1], 1] == 0
+                avail_actions[-1] = 1 # STAY CATCH IS NOT MASKED
             else:
                 avail_actions[self.action_labels["catch"]] = (prey_available.sum() > 0)    
         

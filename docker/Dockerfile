@@ -42,14 +42,10 @@ WORKDIR /install
 RUN pip3 install jsonpickle==0.9.6
 # install Sacred (from OxWhirl fork)
 RUN pip3 install setuptools
-RUN echo hello
-
-RUN git clone --branch Splited_Layer https://github.com/YairKorn/MAPS.git /install/sacred
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt
 
-
-#setup.py install
+RUN git clone --branch Splited_Layer https://github.com/YairKorn/MAPS.git /install/sacred
 
 #### -------------------------------------------------------------------
 #### install pytorch
@@ -61,12 +57,18 @@ RUN pip3 install torchvision snakeviz pytest probscale
 RUN pip3 install torch_scatter
 
 ### -- SMAC
-RUN pip3 install git+https://github.com/oxwhirl/smac.git
+# RUN pip3 install git+https://github.com/oxwhirl/smac.git
 # ENV SC2PATH /pymarl/3rdparty/StarCraftII
 
 RUN pip3 install sacred
 WORKDIR /install/sacred
 # CMD ["python3", "src/main.py", "--config=dcg", "--env-config=het_adv_coverage"]
 
-COPY test_deep_alpha=1.0 /install/sacred/
-CMD ["python3", "test_deep.py"]
+# ENV parameters to control setup of the docker
+ENV map ""
+ENV time 0
+ENV alpha 1.0
+
+# RUN echo hello
+COPY docker_test.py /install/sacred/
+CMD ["python3", "docker_test.py"]

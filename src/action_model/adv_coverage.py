@@ -63,7 +63,7 @@ class AdvCoverage(BasicAM):
     """ Use the general state to create an observation for the agents """
     def get_obs_state(self, data, agent_id):
         # Filter the grid layers that available to the agent
-        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface])
+        watch = np.unique([0, self.watch_covered, 2 * self.watch_surface, 3 * self.watch_surface])
         state, agents = data["state"], data["agents"]
 
         # Observation-mode 1 - return the whole grid
@@ -75,7 +75,7 @@ class AdvCoverage(BasicAM):
 
         if not self.apply_MCTS:
             acted = th.tensor([agent_id in self.action_order for agent_id in range(self.n_agents)])
-            observation[agents[:, 0], agents[:, 1], 0] *= 1 - state[agents[:, 0], agents[:, 1], 2] * acted
+            observation[agents[:, 0], agents[:, 1], 0] *= 1 - state[agents[:, 0], agents[:, 1], 3] * acted
 
         # Add agent's location (one-hot)
         one_hot = th.unsqueeze(th.zeros_like(observation[:, :, 0]), axis=2)
@@ -147,8 +147,8 @@ class AdvCoverage(BasicAM):
         enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
 
         batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
-        batch["reward"][0, t, 0] += self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 3] * \
-            (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
+        # batch["reward"][0, t, 0] += self.threat_reward * self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 4] * \
+        #     (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
 
         # Update the termination status based on 
         batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))
@@ -161,7 +161,7 @@ class AdvCoverage(BasicAM):
     def _action_results(self, data, agent_id, action):
         # Possible action results depends on the threat in the new location
         new_location = data["agents"][0, agent_id, :] + self.action_effect[action]
-        p = data["state"][0, new_location[0], new_location[1], 2] * data["enable"][0, agent_id]
+        p = data["state"][0, new_location[0], new_location[1], 3] * data["enable"][0, agent_id]
         return th.tensor([1.0-p, p] if p else [1.0])
 
     def detect_interaction(self, data):
@@ -170,7 +170,7 @@ class AdvCoverage(BasicAM):
 
     def _get_mcts_scheme(self, scheme, args):
         return {
-            "state": ((self.height, self.width, 3), th.float32),
+            "state": ((self.height, self.width, 4), th.float32),
             "hidden": ((args.rnn_hidden_dim, ), th.float32),
             "agents": ((args.n_agents, 2), th.long),
             "enable": ((self.n_agents, ), th.long)

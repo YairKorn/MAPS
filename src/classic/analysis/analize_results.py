@@ -4,7 +4,7 @@ from datetime import datetime
 
 PATH = os.path.join(os.getcwd(), "src", "classic", "results")
 HEADERS = ['Environment', 'Alpha', 'Graph', 'Cover', 'Time', 'Optim Mean', 'Optim STD']
-O_PATH = os.path.join(os.getcwd(), "src", "classic", "analisys")
+O_PATH = os.path.join(os.getcwd(), "src", "classic", "analysis")
 
 
 if __name__ == '__main__':

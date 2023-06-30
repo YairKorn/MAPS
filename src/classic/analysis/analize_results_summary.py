@@ -5,7 +5,7 @@ import csv
 
 PATH = os.path.join(os.getcwd(), "src", "classic", "results")
 HEADERS = ['Environment', 'Alpha', 'Graph', 'Cover', 'Time', 'Optim Mean', 'Optim STD']
-O_PATH = os.path.join(os.getcwd(), "src", "classic", "analisys")
+O_PATH = os.path.join(os.getcwd(), "src", "classic", "analysis")
 
 GRAPHS = {'ORIGIN': 0, 'SURV': 1, 'OPTIMIZED': 2}
 

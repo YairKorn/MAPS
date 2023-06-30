@@ -34,7 +34,7 @@ env_args:
     # Logging options
     log_env: False          # collect and print log of agents performance
 
-    episode_limit: 3      # maximum number of time steps per episode
+    episode_limit: 100      # maximum number of time steps per episode
 
 t_max: 1250000              # number of time steps of the experiment
 

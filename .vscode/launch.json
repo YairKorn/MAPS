@@ -26,7 +26,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--config=maps",
-                "--env-config=adv_coverage",
+                "--env-config=hunt_trip",
                 "with",
                 "obs_agent_id=False",
                 "-d"

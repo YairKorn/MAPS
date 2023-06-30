@@ -60,8 +60,10 @@ def visualize(window=1, c=None):
         
         COLORS.append(COLORS.pop(0))
 
-    plt.title('QTest_Results')
-    plt.legend(loc="best")
+    plt.title('QTest_Results', fontweight ='bold', fontsize=36, fontname="Ubuntu")
+    plt.legend(loc="best", fontsize=18)
+    plt.xticks(fontsize=25)
+    plt.yticks(fontsize=25)
     plt.show()
 
 

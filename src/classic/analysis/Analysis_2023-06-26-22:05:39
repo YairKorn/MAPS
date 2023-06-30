@@ -1,0 +1,32 @@
+| Environment          | Alpha     | Graph     |  Cover  |  Time   |  Optim Mean  |  Optim STD  |
+|----------------------|-----------|-----------|---------|---------|--------------|-------------|
+| Connected_Areas1_2A  | alpha=0.1 | OPTIMIZED | 62.771  | 57.973  |   56.9737    |   4.17521   |
+| Connected_Areas1_2A  | alpha=0.1 | ORIGIN    | 62.657  | 57.967  |   56.8603    |   4.10871   |
+| Connected_Areas1_2A  | alpha=0.5 | OPTIMIZED | 61.596  | 50.969  |   36.1115    |   1.97492   |
+| Connected_Areas1_2A  | alpha=0.5 | ORIGIN    | 62.977  | 58.332  |    33.811    |   3.12342   |
+| Connected_Areas1_2A  | alpha=1.0 | OPTIMIZED | 60.6122 | 48.516  |   12.0962    |   3.07138   |
+| Connected_Areas1_2A  | alpha=1.0 | ORIGIN    | 62.777  |  58.03  |    4.747     |   7.99368   |
+| Connected_Areas1_3A  | alpha=0.1 | OPTIMIZED |  65.8   | 47.976  |   61.0024    |   4.00212   |
+| Connected_Areas1_3A  | alpha=0.1 | ORIGIN    |  65.53  | 47.182  |   60.8118    |   4.20278   |
+| Connected_Areas1_3A  | alpha=0.5 | OPTIMIZED | 64.786  |  39.19  |    45.191    |   2.88808   |
+| Connected_Areas1_3A  | alpha=0.5 | ORIGIN    |  65.54  | 47.562  |    41.759    |   4.26444   |
+| Connected_Areas1_3A  | alpha=1.0 | OPTIMIZED | 63.8824 | 35.6312 |   28.2511    |   3.84694   |
+| Connected_Areas1_3A  | alpha=1.0 | ORIGIN    | 65.622  | 48.249  |    17.373    |   10.6235   |
+| Connected_Areas1_4A  | alpha=0.1 | OPTIMIZED | 67.977  | 43.436  |   63.6334    |   3.98932   |
+| Connected_Areas1_4A  | alpha=0.1 | ORIGIN    | 67.744  | 43.645  |   63.3795    |   4.03552   |
+| Connected_Areas1_4A  | alpha=0.5 | OPTIMIZED | 67.993  | 37.093  |   49.4465    |   3.3318    |
+| Connected_Areas1_4A  | alpha=0.5 | ORIGIN    | 67.934  | 43.802  |    46.033    |   4.29679   |
+| Connected_Areas1_4A  | alpha=1.0 | OPTIMIZED | 66.1015 | 31.2861 |   34.8154    |   3.13805   |
+| Connected_Areas1_4A  | alpha=1.0 | ORIGIN    | 67.729  | 43.191  |    24.538    |   9.80105   |
+| Connected_Areas1_5A  | alpha=0.1 | OPTIMIZED | 69.7628 | 35.0751 |   66.2553    |   3.50661   |
+| Connected_Areas1_5A  | alpha=0.1 | ORIGIN    | 69.888  | 35.289  |   66.3591    |   3.47382   |
+| Connected_Areas1_5A  | alpha=0.5 | OPTIMIZED | 69.6106 | 32.6637 |   53.2788    |   3.24918   |
+| Connected_Areas1_5A  | alpha=0.5 | ORIGIN    |  70.07  | 35.795  |   52.1725    |   4.26866   |
+| Connected_Areas1_5A  | alpha=1.0 | OPTIMIZED | 68.9185 | 29.6363 |   39.2822    |   4.20961   |
+| Connected_Areas1_5A  | alpha=1.0 | ORIGIN    | 69.801  | 35.032  |    34.769    |    8.46     |
+| Connected_Areas1_6A  | alpha=0.1 | OPTIMIZED | 71.715  | 37.745  |   67.9405    |   2.60566   |
+| Connected_Areas1_6A  | alpha=0.1 | ORIGIN    | 71.705  | 38.243  |   67.8807    |   2.49033   |
+| Connected_Areas1_6A  | alpha=0.5 | OPTIMIZED | 71.429  | 33.487  |   54.6855    |   3.53742   |
+| Connected_Areas1_6A  | alpha=0.5 | ORIGIN    |  71.56  | 38.604  |    52.258    |   5.39694   |
+| Connected_Areas1_6A  | alpha=1.0 | OPTIMIZED | 70.4649 | 27.2386 |   43.2263    |   5.16902   |
+| Connected_Areas1_6A  | alpha=1.0 | ORIGIN    |  71.74  | 38.582  |    33.158    |   9.97001   |

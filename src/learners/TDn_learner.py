@@ -116,7 +116,11 @@ class TDnLearner(QLearner):
             self._update_targets()
             self.last_target_update_episode = episode_num
 
+        v0_values = mac_out[:, 0, 0].max(axis=1)[0]
+
         if t_env - self.log_stats_t >= self.args.learner_log_interval:
+            self.logger.log_stat("v0_mean", v0_values.mean().item(), t_env)
+            self.logger.log_stat("v0_std", v0_values.std().item(), t_env)
             self.logger.log_stat("loss", loss.item(), t_env)
             self.logger.log_stat("grad_norm", grad_norm.item(), t_env)
             mask_elems = mask.sum().item()

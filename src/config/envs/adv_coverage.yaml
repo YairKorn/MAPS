@@ -24,20 +24,20 @@ env_args:
     watch_surface: True     # observe where obstacles and threat are located
 
     allow_collisions: False # "True" allow two agents to be in the same cell
-    allow_stay: False        # does agents can do "nothing action"
+    allow_stay: True        # does agents can do "nothing action"
     default_action: 4       # The "do nothing" action
 
     # Enhance performances by controlling the actual risk
-    reduced_punish: 1.0     # factor of the punishment of getting into obstacles; 1.0 = no reduce, 0.0 = fully reduced
-    reduced_decay: 0.0      # decay of the reduced punish as part of total time; 0.0 = no decay
-    reduced_shape: 'decay'  # 'decay' of 'cutoff'
-    simulated_mode: True   # Deactivate threats in the environment (agents are rewarded but are not being disabled)
+    reduced_punish: 0.0     # factor of the punishment of getting into threats; 1.0 = no reduce, 0.0 = fully reduced
+    reduced_decay: 1.0      # decay of the reduced punish as part of total time; 0.0 = no decay
+    reduced_shape: 'cutoff' # 'decay' of 'cutoff'
+    simulated_mode: False   # Deactivate threats in the environment (agents are rewarded but are not being disabled)
 
     reward_cell: 1.0        # positive reward for every cell covered (for the first time)
     reward_collision: 0.0   # negative reward for collisions
     reward_invalid: 0.0     # negative reward for trying to make an invalid move
     reward_succes: 25.0     # positive reward given if grid is fully covered
-    reward_threat: 1.0      # factor for the threat reward, based on the MRAC reward function
+    reward_threat: 0.0      # factor for the threat reward, based on the MRAC reward function
     reward_time: -1.0       # negative reward for every timestep #! CHECK BEHAVIOR FOR R=1.0!!!
 
     # Logging options

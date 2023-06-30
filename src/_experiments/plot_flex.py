@@ -8,6 +8,7 @@ COLORS = ['blue', 'red', 'black', 'green', 'purple', 'tan', 'lime', 'skyblue', '
 def visualize(prefix, window=1, c=None, metric=None):
     # list of file to plot on graph
     experiments = os.listdir(os.path.join(os.getcwd(), 'results', 'sacred', prefix))
+    experiments.sort()
 
     if c is None:
         c = experiments
@@ -26,9 +27,9 @@ def visualize(prefix, window=1, c=None, metric=None):
 
     # Create figure, unifie dataset and plot it
     fig, axs = plt.subplots(len(metric))
-    fig.suptitle(prefix)
+    fig.suptitle(prefix, fontweight ='bold', fontsize=36, fontname="Ubuntu")
     for i in range(len(metric)):
-        axs[i].set_title(metric[i])
+        axs[i].set_title(metric[i], fontsize=30)
 
 
     for pre, exp in dataset.items():
@@ -68,8 +69,12 @@ def visualize(prefix, window=1, c=None, metric=None):
         COLORS.append(COLORS.pop(0))
 
     # plt.title(prefix)
-    plt.legend(loc="best")
+    plt.legend(loc="best", fontsize=30)
+    # plt.title(prefix,)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
     plt.show()
+
 
 
 def make_parser():

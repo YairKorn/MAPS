@@ -138,6 +138,7 @@ class Robot():
         elif self.graph_function == "OPTIMIZED":
             remaining_cells = map.size - ((cover_map > 0).sum() if cover_map is not None else (map == -1).sum())
             self.induced_grid = (1 - self.alpha/n_robots) * map * remaining_cells + self.alpha
+            self.induced_grid[np.where(map == -1)] = -1
 
     def find_best_path_to_areas(self, areas: list[Area]):
         Dijkstra_results = grid_Dijkstra(self.induced_grid, self.location)
@@ -153,13 +154,16 @@ class Robot():
         return areas_cost
         
 
-    def calc_path_to_area(self, area=None):
+    def calc_path_to_area(self, areas_map, area=None):
         if area is None:
             self.path = target_Dijkstra(self.induced_grid, np.array(self.location), self.area.cells) if self.area else []
         else:
             self.path = target_Dijkstra(self.induced_grid, np.array(self.location), area.cells)
+        if not all([(areas_map[e] is not None) for e in self.path]):
+            self.path = target_Dijkstra(self.induced_grid, np.array(self.location), self.area.cells)
 
-    def calc_path_in_area(self):
+
+    def calc_path_in_area(self, areas_map):
         cells = self.area.cells.copy()
         for cell in self.area.cells:
             if cells[cell]:
@@ -168,6 +172,7 @@ class Robot():
         while cells:
             self.path += target_Dijkstra(self.induced_grid, np.array(self.path[-1] if self.path else self.location), cells)
             cells.pop(self.path[-1])
+        assert all([(areas_map[e] is not None) for e in self.path]), "Invalid path"
 
 
     def make_a_move(self, map: np.ndarray, areas_map: np.ndarray):
@@ -189,7 +194,7 @@ class Robot():
             area_status = self.make_a_move(map, areas_map)
             
             if not self.path and (self.status != self.STATUS["DISABLED"]):
-                self.calc_path_in_area()
+                self.calc_path_in_area(areas_map)
                 self.status = self.STATUS["COVERING"]
 
         elif self.status == self.STATUS["COVERING"]:
@@ -226,3 +231,13 @@ def config2map(config, default_path = True):
                      graph_function=config.graph_function, n_robots=data["n_agents"]) for id, loc in enumerate(data["agents_placement"])]
     
     return grid, robots, ths, ths_mat
+
+
+def show_areas_mapping(areas_list, areas_map):
+    new_map = np.zeros_like(areas_map)
+    areas_mapping = {k:i for i, k in enumerate(areas_list)}
+
+    for i in range(new_map.size):
+        j, k = i // areas_map.shape[0], i  % areas_map.shape[0]
+        new_map[j, k] = areas_mapping[areas_map[j, k]] if areas_map[j, k] in areas_mapping else -1
+        

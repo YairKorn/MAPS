@@ -108,12 +108,12 @@ def assign_next_area(areas: list[Area], areas_map: np.ndarray, robot: Robot):
     else:
         avail_areas = areas.copy()
         for area in areas:
-            robot.calc_path_to_area(area)
+            robot.calc_path_to_area(area=area, areas_map=areas_map)
             if len(robot.path) > len(area.cells) - area.covered_cells: #* In the original algorithm it's ">" rather than ">="
                 avail_areas.remove(area)
         
         for area in avail_areas.copy():
-            robot.calc_path_to_area(area)
+            robot.calc_path_to_area(area=area, areas_map=areas_map)
             print(f"{area}\tPath: {len(robot.path)}\tCells: {len(area.cells) - area.covered_cells}")
 
 
@@ -153,10 +153,10 @@ def assign_next_area(areas: list[Area], areas_map: np.ndarray, robot: Robot):
     return True
 
 def plan_robot_path(robot: Robot):
-    robot.calc_path_to_area()
+    robot.calc_path_to_area(areas_map)
     robot.status = robot.STATUS["TRAVELING"] if len(robot.path) else robot.STATUS["COVERING"]
     if robot.status == robot.STATUS["COVERING"]:
-        robot.calc_path_in_area()
+        robot.calc_path_in_area(areas_map)
 
 
 def init_env(areas: list[Area], areas_map: np.ndarray, robots: list[Robot], cover_map: np.ndarray):
@@ -206,6 +206,7 @@ if __name__ == '__main__':
                 
                 # Perform action for every ACTIVE robot
                 for robot in robots:
+                    assert all([(areas_map[e] is not None) for e in robot.path]), "Invalid path"
                     if robot.status != robot.STATUS["DISABLED"]:
                         n_robots = sum([robot.status != robot.STATUS["DISABLED"] for robot in robots])
                         robot.create_induced_grid(map.take(robot.type, axis=-1), n_robots, cover_map)

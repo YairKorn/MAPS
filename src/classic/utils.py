@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime
 import json, os
 
-VALID_ACTIONS = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
+VALID_ACTIONS = np.array([[0, 1], [1, 0], [-1, 0], [0, -1]])
 
 # Calculate the best path and entrace point to a specific area
 # Returns the path in a list format
@@ -87,3 +87,15 @@ def print_results(path, config, results):
     date = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
     with open(os.path.join(path, config.map + "#alpha=" + str(config.optim_alpha) + "#" + config.graph_function + "#" + date + ".json"), 'w') as output_file:
         json.dump(result_dict, output_file, indent=2)
+
+
+def decode_map(areas_map):
+    res_map = np.ones((len(areas_map), len(areas_map[0])))
+    res_map *= -1
+    for i in range(len(areas_map)):
+        for j in range(len(areas_map[0])):
+            if areas_map[i][j] is None:
+                res_map[i, j] = np.nan
+            elif len(areas_map[i][j].assigned) > 0:
+                res_map[i, j] = areas_map[i][j].assigned[0].id
+    return res_map

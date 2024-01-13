@@ -11,11 +11,13 @@ env_args:
     # RECOMMENDED MAPS: T9x9_Hard || T8x8_Hard || T7x7_Hard || T6x6_Hard || T5x5_Hard || T3x3_Basic || S7x7_4Boxes
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
-    shuffle_config: False   # if enabled, the configuration of the area is changed every episode 
+    shuffle_config: True    # if enabled, the configuration of the area is changed every episode
     obstacle_rate: 0.2      # ... percentage of the area contains obstacles
-    threats_rate: 0.0       # ... percentage of the area contains threats using normal distribution with:
+    threats_rate: 0.15       # ... percentage of the area contains threats using normal distribution with:
     risk_avg: 0.2           # ... ... average of threats risk
     risk_std: 0.2           # ... ... standard deviation of threats risk
+    fix_seed: False         # Fix seed of agents location, for reproducable tests
+    reps_per_seed: 50       # Repetitions per seed
 
     observation_range: -1   # radius of observation, -1 means full observability
     observe_ids: True      # observation includes agents' ids

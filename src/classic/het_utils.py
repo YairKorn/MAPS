@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime
 import json, os
 
-VALID_ACTIONS = np.array([[0, 1], [1, 0], [0, -1], [-1, 0]])
+VALID_ACTIONS = np.array([[0, -1], [-1, 0], [0, 1], [1, 0]])
 
 # Calculate the best path and entrace point to a specific area
 # Returns the path in a list format

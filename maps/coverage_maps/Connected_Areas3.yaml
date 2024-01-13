@@ -35,4 +35,4 @@ threat_location: [[0, 3, 0.3],
 ]
 torodial: False
 world_shape: [9, 9]
-random_placement: False
+random_placement: True

@@ -7,7 +7,7 @@ env: "het_mrac"            # a grid-world for adversarial coverage
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "HScattered_Threats3"      # A specified setup of the environment
+    map: "HScattered_Threats1"      # A specified setup of the environment
     # RECOMMENDED MAPS: HScattered_Threats2 | HScattered_Threats1
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
@@ -18,7 +18,7 @@ env_args:
     risk_std: 0.2           # ... ... standard deviation of threats risk
 
     observation_range: -1   # radius of observation, -1 means full observability
-    observe_ids: False      # observation includes agents' ids
+    observe_ids: True       # observation includes agents' ids
     observe_state: False    # whether an observation is only partial (False) or central including agent position (True)
     watch_covered: True     # observe which cells was covered and which wasn't
     watch_surface: True     # observe where obstacles and threat are located

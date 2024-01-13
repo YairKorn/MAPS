@@ -8,3 +8,6 @@ REGISTRY["mrac"] = AdvCoverage
 
 from .hunt_trip import HuntingTrip
 REGISTRY["hunt_trip"] = HuntingTrip
+
+from .gold_coverage import GoldCoverage
+REGISTRY["gold"] = GoldCoverage

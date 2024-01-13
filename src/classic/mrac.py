@@ -1,11 +1,12 @@
 import yaml
 import numpy as np
 from mrac_utils import *
-from utils import print_results
+from utils import print_results, decode_map
 from argparse import Namespace
 from scipy.optimize import linear_sum_assignment
 from argparse import ArgumentParser
 
+NUM_REPEATS = 50
 
 """
 $ General notes about the algorithm:
@@ -172,11 +173,11 @@ if __name__ == '__main__':
     print(config)
     results = [] # Store results of runs
 
-    for _ in range(config.test_nepisode):
+    for i in range(config.test_nepisode):
         try:
             # Initialization
-            print(f"### Initializing run {_}/{config.test_nepisode} ###")
-            map, robots = config2map(config)
+            print(f"### Initializing run {i}/{config.test_nepisode} ###")
+            map, robots = config2map(config, seed=int(i/NUM_REPEATS))
             cover_map = np.zeros_like(map, dtype=np.int16) + (map == -1).astype(np.int16)
 
             # Pre-processing of the map
@@ -191,7 +192,8 @@ if __name__ == '__main__':
                 #$ DEBUG
                 print(f'Time: {time}\t{[[r.id for r in a.assigned] for a in areas_list]}')
                 print(f'Time: {time}\t{[r.status for r in robots]}')
-                
+                print("Stop here")
+
                 # Perform action for every ACTIVE robot
                 for robot in robots:
                     if robot.status != robot.STATUS["DISABLED"]:

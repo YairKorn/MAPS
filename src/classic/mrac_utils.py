@@ -209,8 +209,21 @@ class Robot():
         return self.status, area_status
 
 
-def config2map(config, default_path = True):
-    path = os.path.join(os.getcwd(), "maps", "coverage_maps") if default_path else ""
+def _place_agents(data, grid, seed=None):
+    if data["random_placement"]:
+        width, height = grid.shape[:2]
+        avail_cell = np.asarray(grid != -1, dtype=np.int16) # free cells
+        
+        random_generator = np.random.RandomState(seed)
+        l_cells = random_generator.choice(width * height, data["n_agents"], replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
+        return np.stack((l_cells/width, l_cells%width)).transpose().astype(np.int16)
+    else:
+        return data["agents_placement"][:data["n_agents"]]
+
+
+def config2map(config, seed=None, default_path=True):
+    map_folder = "het_coverage_maps" if config.heterogeneous else "coverage_maps"
+    path = os.path.join(os.getcwd(), "maps", map_folder) if default_path else ""
     data = yaml.safe_load(open(os.path.join(path, config.map + ".yaml"), 'r'))
     
     # Initialization of the map
@@ -218,10 +231,17 @@ def config2map(config, default_path = True):
     obs = np.array(data["obstacles_location"])
     grid[obs[:, 0], obs[:, 1]] = -1.0
     ths = np.array(data["threat_location"])
-    grid[ths[:, 0].astype(int), ths[:, 1].astype(int)] = ths[:, 2]
+
+    if config.heterogeneous:
+        mean_threat = np.array(data["types_matrix"]).mean(axis=0)[ths[:, 3].astype(int)]
+        grid[ths[:, 0].astype(int), ths[:, 1].astype(int)] = ths[:, 2] * mean_threat
+    else:
+        grid[ths[:, 0].astype(int), ths[:, 1].astype(int)] = ths[:, 2]
 
     # Initialization of the robots
+    agent_locations = _place_agents(data, grid, seed=seed)
     robots = [Robot(grid, id, location=np.array(loc), alpha=config.optim_alpha, graph_function=config.graph_function, \
-                    n_robots=data["n_agents"]) for id, loc in enumerate(data["agents_placement"])]
+                    n_robots=data["n_agents"]) for id, loc in enumerate(agent_locations)]
     
+    print(f"Agents locations = {agent_locations}")
     return grid, robots

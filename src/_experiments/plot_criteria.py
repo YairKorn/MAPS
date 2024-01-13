@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 COLORS = ['blue', 'red', 'black', 'green', 'purple', 'tan', 'lime', 'skyblue', 'fuchsia', 'grey']
 
+
 def visualize(prefix, window=1, c=None):
     experiments = os.listdir(os.path.join(os.getcwd(), 'results', 'sacred', prefix))
     experiments.sort()
@@ -70,9 +71,10 @@ def visualize(prefix, window=1, c=None):
             plt.fill_between(test_time, criteria_mean - criteria_std, criteria_mean + criteria_std, color=COLORS[0], alpha=.25)
             COLORS.append(COLORS.pop(0))
 
-
     plt.title(prefix + " Criteria", fontweight ='bold', fontsize=36, fontname="Ubuntu")
     plt.legend(loc="best", fontsize=36)
+    plt.xlabel("Time Steps", fontsize=28)
+    plt.ylabel("Optimization Value", fontsize=28)
     plt.xticks(fontsize=25)
     plt.yticks(fontsize=25)
     plt.show()
@@ -85,9 +87,9 @@ def make_parser():
     parser.add_argument('--c', '--list', nargs='+')
     return parser
 
+
 # Run using command line:
 # python plot.py prefix (window) --c cat1 cat2 etc.
-# 
 if __name__ == "__main__":
     # Experiments on the same environment and plotted together
     args = make_parser().parse_args()

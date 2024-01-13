@@ -14,6 +14,7 @@ NOTES:
 * Environment is not compatable for batch mode for now (lean code without extra features)
 ? enable random placement of agents only once?
 """
+import json
 import os, yaml, datetime, imageio
 from envs.multiagentenv import MultiAgentEnv
 from utils.dict2namedtuple import convert
@@ -23,9 +24,10 @@ np.set_printoptions(precision=2)
 
 import matplotlib.pyplot as plt
 import warnings
-warnings.filterwarnings( "ignore", module = "matplotlib\..*" )
+warnings.filterwarnings("ignore", module="matplotlib\..*" )
 
 MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
+
 
 class AdversarialCoverage(MultiAgentEnv):
 
@@ -67,6 +69,9 @@ class AdversarialCoverage(MultiAgentEnv):
         self.threats_rate   = getattr(args, "threats_rate", 0.2)
         self.risk_avg       = getattr(args, "risk_avg", 0.2)
         self.risk_std       = getattr(args, "risk_std", 0.2)
+        self.fix_seed       = getattr(args, "fix_seed", False)
+        self.reps_per_seed  = getattr(args, "reps_per_seed", 1)
+        self.tests_till_now = 0
 
         # place obstacles and threats in the area
         if not self.shuffle_config:
@@ -134,6 +139,7 @@ class AdversarialCoverage(MultiAgentEnv):
         self.log_collector = []
         self.test_mode     = False
         self.nepisode      = 0
+        self.evaluate = False
         self.log_id = getattr(args, "id", '0')
 
         # Internal variables
@@ -157,17 +163,11 @@ class AdversarialCoverage(MultiAgentEnv):
             self.grid[:, :, 3] += self._place_threats(self.threats_rate, self.risk_avg, self.risk_std)
             self.obstacles = np.stack(np.where(self.grid[:, :, 2] == 1)).transpose()
 
-        # Place agents & set obstacles to marked as "covered"
-        self.agents = self._place_agents()
-        self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
-        self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
-        if self.obstacles.size > 0:
-            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
-
         # self.threat_factor = 1.0
         if kwargs:
-            self.test_mode = kwargs['test_mode']
+            self.test_mode = kwargs['test_mode'] or kwargs['evaluate']
             self.nepisode  = kwargs['test_nepisode']
+            self.evaluate = kwargs['evaluate']
 
             # PUNISH FACTOR gradually increases the threats in the area
             if not self.test_mode:
@@ -183,6 +183,14 @@ class AdversarialCoverage(MultiAgentEnv):
             self.simulated_mode = getattr(self.args, 'simulated_mode', False) * (not self.test_mode)
             self.succes_reward = getattr(self.args, 'reward_succes', False) * (not self.test_mode)
             # print(f"Threat factor: {self.threat_factor}")
+
+        # Place agents & set obstacles to marked as "covered"
+        self.agents = self._place_agents()
+        self.grid[self.agents[:, 0], self.agents[:, 1], 0] = (np.arange(self.n_agents) + 1)
+        self.grid[self.agents[:, 0], self.agents[:, 1], 1] = 1
+        if self.obstacles.size > 0:
+            self.grid[self.obstacles[:, 0], self.obstacles[:, 1], 1] = 1
+
 
     # "invalid_agents", "collision" allow decomposition of the reward per agent -
     # wasn't implemented for compatability reasons
@@ -204,19 +212,21 @@ class AdversarialCoverage(MultiAgentEnv):
             if not np.array_equal(new_locations[agent], self.agents[agent]): # the agent should move
                 new_cell, collision = self._move_agent(agent, new_locations[agent])
                 
-                # calculate reward for the step - includes whether or not a new cell covered & if collision occured
+                # calculate reward for the step - includes whether a new cell covered & if collision occurred
                 reward += new_cell * self.new_cell_reward + (collision is not None) * self.collision_reward
 
         # Threats reward - indicate for the agents that they are in danger
         e = np.where(self.agents_enabled == 1)[0] # enabled agents
-        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 3]) * self.threat_factor
+        total_threats = np.sum(self.grid[self.agents[e, 0], self.agents[e, 1], 3])
         covered = np.sum(self.grid[:, :, 1])
         alive_agents = e.size
 
         reward += (1 + self.time_reward) * (total_threats * (self.n_cells - covered) * (self.time_reward/(alive_agents) if alive_agents > 1 else -1))
 
         # Apply risks in area on the agents (disable robots w.p. associated to the cell)
-        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 3] * (1 - self.simulated_mode)
+        # threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 3] * (1 - self.simulated_mode)
+        threat_effect = np.random.random(self.n_agents) > self.grid[self.agents[:, 0], self.agents[:, 1], 3] * self.threat_factor
+
         temp_agent_enabled = self.agents_enabled.copy()
         self.agents_enabled *= threat_effect
 
@@ -238,10 +248,13 @@ class AdversarialCoverage(MultiAgentEnv):
         # Logging (only for test episodes, when logger is on)
         if self.log_env and self.test_mode and terminated:
             self._logger()
+        
+        if self.fix_seed and self.test_mode and terminated:
+            self.tests_till_now += 1
 
         return reward, terminated, info
 
-    # Claculate avaiable actions for all the agents
+    # Calculate available actions for all the agents
     def get_avail_actions(self):
         return [self.get_avail_agent_actions(agent) for agent in range(self.n_agents)]
 
@@ -398,8 +411,12 @@ class AdversarialCoverage(MultiAgentEnv):
     def _place_agents(self):
         # Random placement - select random free cells for initiating the agents
         if self.random_placement:
-            avail_cell = np.asarray(self.grid[:, :, 2] != -1, dtype=np.int16) # free cells
-            l_cells = np.random.choice(self.n_cells, self.n_agents, replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
+            avail_cell = np.asarray(self.grid[:, :, 2] != 1, dtype=np.int16)  # free cells
+
+            # seed = int(self.tests_till_now / self.reps_per_seed) if (self.test_mode and self.fix_seed) else None
+            seed = np.random.randint(0, 5)
+            random_generator = np.random.RandomState(seed)
+            l_cells = random_generator.choice(self.n_cells, self.n_agents, replace=False, p=avail_cell.reshape(-1)/np.sum(avail_cell))
             return np.stack((l_cells/self.width, l_cells%self.width)).transpose().astype(np.int16)
 
         # Else, set the agents in the set placement (random placement override setted placements)
@@ -422,7 +439,6 @@ class AdversarialCoverage(MultiAgentEnv):
             
             self.log_stat["covered"] *= 0
             self.log_stat["episode"] = 0
-    
 
     # Visualize dymanic of learning over time
     def _visualize_learning(self, frame_rate=0.2):

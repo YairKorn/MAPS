@@ -22,5 +22,8 @@ REGISTRY["mrac"] = partial(env_fn, env=AdversarialCoverage)
 from .het_adv_coverage import HeterogeneousAdversarialCoverage
 REGISTRY["het_mrac"] = partial(env_fn, env=HeterogeneousAdversarialCoverage)
 
+from .gold_coverage import GoldCoverage
+REGISTRY["gold"] = partial(env_fn, env=GoldCoverage)
+
 from .hunt_trip import HuntingTrip
 REGISTRY["hunt_trip"] = partial(env_fn, env=HuntingTrip)

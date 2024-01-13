@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.stats import mannwhitneyu as mnw
 
 RESULTS_PATH = os.path.join(os.getcwd(), "..", "results")
-LEARNING_PATH = "/home/ylab/experiments/MAPS/results/results_raw"
+LEARNING_PATH = "/results/results_raw"
 OUTPUT_PATH = os.path.join(os.getcwd(), "..", "analysis")
 
 

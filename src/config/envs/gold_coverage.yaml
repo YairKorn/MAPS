@@ -2,12 +2,12 @@
 #   1. Standard coverage (n agents in grid world) - deterministic world
 #   2. Adversarial coverage (with threat in grid world) - stochastic world
 
-env: "mrac"            # a grid-world for adversarial coverage
+env: "gold"            # a grid-world for adversarial coverage
 
 env_args:
     random_seed: null       # defines np random seed for reproducability of tests
 
-    map: "Random_Map3"     # A specified setup of the environment
+    map: "Gold_4x4"     # A specified setup of the environment
     # RECOMMENDED MAPS: T9x9_Hard || T8x8_Hard || T7x7_Hard || T6x6_Hard || T5x5_Hard || T3x3_Basic || S7x7_4Boxes
  
     random_config: False    # if enabled (True), obtacles and threats are located randomly (override obstacles\threats_location), based on:
@@ -26,7 +26,7 @@ env_args:
     watch_surface: True     # observe where obstacles and threat are located
 
     allow_collisions: False # "True" allow two agents to be in the same cell
-    allow_stay: True        # does agents can do "nothing action"
+    allow_stay: False        # does agents can do "nothing action"
     default_action: 4       # The "do nothing" action
 
     # Enhance performances by controlling the actual risk
@@ -47,7 +47,7 @@ env_args:
     visualize: False        # plot a gif of progress of learning
     frame_rate: 0.2         # frame-speed of output sequence
 
-    episode_limit: 100      # maximum number of time steps per episode
+    episode_limit: 10      # maximum number of time steps per episode
 
-t_max: 1500000 # 1500000              # number of time steps of the experiment
+t_max: 50000 # 1500000              # number of time steps of the experiment
 

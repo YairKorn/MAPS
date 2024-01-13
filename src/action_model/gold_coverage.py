@@ -4,9 +4,9 @@ import numpy as np
 import torch as th
 from .basic_model import BasicAM
 from collections import defaultdict
-MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
+MAP_PATH = os.path.join(os.getcwd(), 'maps', 'gold_maps')
 
-class AdvCoverage(BasicAM):
+class GoldCoverage(BasicAM):
     def __init__(self, scheme, args) -> None:
         #! PyMARL doesn't support user-designed maps so it's a little bit artificial here
         env_map = os.path.join(MAP_PATH, (args.env_args["map"] if args.env_args["map"] is not None else 'default') + '.yaml')
@@ -104,6 +104,8 @@ class AdvCoverage(BasicAM):
         enable_agents = max(enable.sum(), 1) # number of enable agents, bound by 1 for prevent divergence
         agent_location = agents[agent_id, :].clone()
 
+        gold_cell = state[-1, -1, 1].item()
+
         # No move is performed
         if (not avail_actions.view(-1)[action]):
             action = 4
@@ -129,7 +131,10 @@ class AdvCoverage(BasicAM):
         # Termination status
         terminated = (th.sum(state[:, :, 1]) == self.n_cells) or (not sum(enable))
 
-        return 0, terminated
+        gold_reward = self.succes_reward * (th.sum(state[:, :, 1]) == self.n_cells) * (1 - gold_cell)
+        if gold_reward and self.test_mode:
+            print("Got golden reward!")
+        return gold_reward, terminated
     
     """ back_update """
     def _back_update(self, batch, data, t, n_episodes):
@@ -146,9 +151,7 @@ class AdvCoverage(BasicAM):
         new_cell = 1 - obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 2]
         enable_agents = (data["enable"][0, self.action_order[:n_episodes]]).sum() + (self.prev_enable[self.action_order[n_episodes:]]).sum()
 
-        batch["reward"][0, t, 0] =  self.time_reward / self.n_agents + self.new_cell_reward * new_cell
-        # batch["reward"][0, t, 0] += self.threat_reward * self.prev_enable[agent_id] * obs[data["agents"][0][agent_id, 0], data["agents"][0][agent_id, 1], 4] * \
-        #     (self.n_cells - th.sum(obs[:, :, 2]) - new_cell) * (self.time_reward/(enable_agents) if enable_agents > 1 else -1)
+        batch["reward"][0, t, 0] = self.time_reward / self.n_agents + self.new_cell_reward * new_cell
 
         # Update the termination status based on 
         batch["terminated"][0, t, 0] = ((obs[:, :, 1].sum() == 0) or (obs[:, :, 2].sum() == self.n_cells) or (batch["terminated"][0, t, 0]))

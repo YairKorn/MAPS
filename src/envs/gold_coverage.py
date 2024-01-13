@@ -26,10 +26,10 @@ import matplotlib.pyplot as plt
 import warnings
 warnings.filterwarnings("ignore", module="matplotlib\..*" )
 
-MAP_PATH = os.path.join(os.getcwd(), 'maps', 'coverage_maps')
+MAP_PATH = os.path.join(os.getcwd(), 'maps', 'gold_maps')
 
 
-class AdversarialCoverage(MultiAgentEnv):
+class GoldCoverage(MultiAgentEnv):
 
     action_labels = {'right': 0, 'down': 1, 'left': 2, 'up': 3, 'stay': 4}
     action_effect = np.asarray([[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]], dtype=np.int16)
@@ -181,7 +181,7 @@ class AdversarialCoverage(MultiAgentEnv):
             else:
                 self.threat_factor = 1.0
             self.simulated_mode = getattr(self.args, 'simulated_mode', False) * (not self.test_mode)
-            self.succes_reward = getattr(self.args, 'reward_succes', False) * (not self.test_mode)
+            self.succes_reward = getattr(self.args, 'reward_succes', False) #  * (not self.test_mode)
             # print(f"Threat factor: {self.threat_factor}")
 
         # Place agents & set obstacles to marked as "covered"
@@ -206,6 +206,9 @@ class AdversarialCoverage(MultiAgentEnv):
         # Calculate theoretical new locations
         new_locations, invalid_agents = self._enforce_validity(self.action_effect[actions] + self.agents)
         reward += invalid_agents.size * self.invalid_reward
+
+        # Golden cell
+        gold_status = self.grid[-1, -1, 1]  # status of the golden cell
 
         # Move the agents (avoid collision if allow_collision is False)
         for agent in np.random.permutation(self.n_agents):
@@ -233,16 +236,16 @@ class AdversarialCoverage(MultiAgentEnv):
         d = temp_agent_enabled != self.agents_enabled # agents disabled right now are removed from the grid
         self.grid[self.agents[d, 0], self.agents[d, 1], 0] = 0
 
-        mission_succes = np.sum(self.grid[:, :, 1]) == self.n_cells
-        reward += mission_succes * self.succes_reward
-        if mission_succes:
+        mission_success = (np.sum(self.grid[:, :, 1]) == self.n_cells) * (1 - gold_status)
+        reward += mission_success * self.succes_reward
+        if mission_success:
             print(f"Mode: {'Test    ' if self.test_mode else 'Training'} | Coverage was completed! | Reward={reward}")
         
         self.steps += 1
         self.sum_rewards += reward
 
         # if the whole area was covered, or all agents are disabled, or episode limit was reached, end the episode
-        terminated = mission_succes or not np.sum(self.agents_enabled) or self.steps >= self.episode_limit
+        terminated = mission_success or not np.sum(self.agents_enabled) or self.steps >= self.episode_limit
         info = {"episode_limit": self.steps >= self.episode_limit}
 
         # Logging (only for test episodes, when logger is on)

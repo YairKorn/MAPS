@@ -73,19 +73,20 @@ class map_generator():
         file_str = "# A map for advarserial coverage environment\n\n"
         
         file_str += "agents_placement: "
-        file_str += agents.__str__().replace(' ', ', ').replace('\n', '')
+        file_str += agents.tolist().__str__()
         
         file_str += "\nn_agents: "
         file_str += str(agents.shape[0])
 
         file_str += "\nobstacles_location: "
         obstacles_location = np.vstack(np.where(obstacles == -1)).T
-        file_str += obstacles_location.__str__().replace(' ', ', ').replace('\n', '')
+        # file_str += obstacles_location.__str__().replace(' ', ', ').replace('\n', '')
+        file_str += obstacles_location.tolist().__str__()
 
         file_str += "\nthreat_location: "
         threats_location = np.vstack(np.where(threats > 0))
         threats_location = np.vstack((threats_location, threats[threats_location[0, :], threats_location[1, :]])).T
-        file_str += threats_location.__str__().replace('\n', ',\n').replace('.  ', ',')
+        file_str += threats_location.tolist().__str__().replace("], ", "],\n")
 
         file_str += "\ntorodial: False"
         file_str += "\nworld_shape: "
@@ -97,9 +98,9 @@ class map_generator():
         
 
 if __name__ == '__main__':
-    for i in [2]:
-        wsize = np.random.randint(5, 9)
-        n_agents = 1 #int(wsize / 3) + np.random.randint(1, 4)
+    for i in [20]:
+        wsize = np.random.randint(20, 21)
+        n_agents = 15 #int(wsize / 3) + np.random.randint(1, 4)
 
         path = f'/home/ylab/experiments/MAPS/maps/coverage_maps/Random_Single_Map{i+1}.yaml'
         if os.path.exists(path):
@@ -110,5 +111,5 @@ if __name__ == '__main__':
 
         map_generator(path=path,
             height=wsize, width=wsize, n_agents=n_agents,
-            obstacle_rate=0.25 * np.random.rand() + 0.1, threats_rate=0.3 * np.random.rand(),
-             risk_avg=0.3 * np.random.rand() + 0.15, risk_std=0.2 * np.random.rand() + 0.2)
+            obstacle_rate=0.25 * np.random.rand() + 0.15, threats_rate=0.3 * np.random.rand(),
+             risk_avg=0.3 * np.random.rand() + 0.10, risk_std=0.2 * np.random.rand() + 0.2)

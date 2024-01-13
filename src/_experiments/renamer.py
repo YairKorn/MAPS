@@ -4,6 +4,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 PATH = os.path.join(os.getcwd(), 'results', 'sacred')
 
+
 # Function for flatten a dictionary
 def flatten(d, parent_key='', sep='_'):
     items = []
